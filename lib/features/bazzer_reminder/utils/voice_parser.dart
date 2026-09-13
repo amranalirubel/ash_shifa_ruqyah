@@ -1,4 +1,5 @@
 import 'package:uuid/uuid.dart';
+
 import '../models/bazzer_item_model.dart';
 
 class VoiceParser {

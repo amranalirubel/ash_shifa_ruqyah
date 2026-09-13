@@ -1,7 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'login_page.dart';
+
+import '../data/user_profile_repository.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -12,15 +12,19 @@ class SignUpPage extends StatefulWidget {
 
 class _SignUpPageState extends State<SignUpPage> {
   final _formKey = GlobalKey<FormState>();
-  final nameController = TextEditingController();
-  final emailController = TextEditingController(); // Phone → Email
-  final passwordController = TextEditingController();
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _profiles = UserProfileRepository();
+
+  bool _isSubmitting = false;
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
-    nameController.dispose();
-    emailController.dispose();
-    passwordController.dispose();
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
@@ -40,45 +44,69 @@ class _SignUpPageState extends State<SignUpPage> {
   );
 
   Future<void> _signUp() async {
-    if (!_formKey.currentState!.validate()) {
+    if (_isSubmitting || !_formKey.currentState!.validate()) {
       return;
     }
+
+    setState(() => _isSubmitting = true);
 
     try {
       final userCredential = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(
-            email: emailController.text.trim(),
-            password: passwordController.text.trim(),
+            email: _emailController.text.trim(),
+            password: _passwordController.text,
           );
 
-      // Firestore-এ ইউজারের নাম সেভ করা
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userCredential.user!.uid)
-          .set({
-            'name': nameController.text.trim(),
-            'email': emailController.text.trim(),
-            'createdAt': FieldValue.serverTimestamp(),
-          });
-
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const LoginPage()),
+      final user = userCredential.user;
+      if (user == null) {
+        throw FirebaseException(
+          plugin: 'firebase_auth',
+          code: 'missing-user',
+          message: 'Account was created without a user session.',
         );
       }
-    } on FirebaseAuthException catch (e) {
-      String msg = e.code == 'email-already-in-use'
-          ? 'এই ইমেইলটি আগেই আছে'
-          : e.message ?? 'কিছু সমস্যা হয়েছে';
 
-      // Wrapped the statement below in a block
+      await _profiles.createProfile(user: user, name: _nameController.text);
+
+      if (mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    } on FirebaseAuthException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(msg)));
+        ).showSnackBar(SnackBar(content: Text(_signUpMessage(e.code))));
       }
+    } on FirebaseException catch (e) {
+      // The Auth user may already exist even if the profile write failed.
+      // Signing out avoids presenting a half-initialized authenticated screen;
+      // logging in again will safely retry profile synchronization.
+      await FirebaseAuth.instance.signOut();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'অ্যাকাউন্ট তৈরি হয়েছে, কিন্তু প্রোফাইল sync হয়নি (${e.code})। '
+              'Rules ঠিক করে Login করুন।',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
     }
+  }
+
+  String _signUpMessage(String code) {
+    return switch (code) {
+      'email-already-in-use' => 'এই ইমেইল দিয়ে আগে থেকেই অ্যাকাউন্ট আছে।',
+      'invalid-email' => 'সঠিক ইমেইল ঠিকানা লিখুন।',
+      'weak-password' => 'আরও শক্তিশালী পাসওয়ার্ড ব্যবহার করুন।',
+      'operation-not-allowed' =>
+        'Firebase Authentication-এ Email/Password চালু করুন।',
+      'network-request-failed' => 'ইন্টারনেট সংযোগ পরীক্ষা করুন।',
+      _ => 'অ্যাকাউন্ট তৈরি করা যায়নি। আবার চেষ্টা করুন।',
+    };
   }
 
   @override
@@ -101,31 +129,59 @@ class _SignUpPageState extends State<SignUpPage> {
                 children: [
                   const SizedBox(height: 20),
                   TextFormField(
-                    controller: nameController,
+                    controller: _nameController,
                     style: const TextStyle(color: Colors.black),
-                    decoration: _inputDecoration("Full Name"),
-                    validator: (v) =>
-                        v == null || v.isEmpty ? "Enter your name" : null,
+                    textCapitalization: TextCapitalization.words,
+                    textInputAction: TextInputAction.next,
+                    autofillHints: const [AutofillHints.name],
+                    decoration: _inputDecoration('Full Name'),
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? 'আপনার নাম লিখুন।'
+                        : null,
                   ),
                   const SizedBox(height: 15),
                   TextFormField(
-                    controller: emailController,
+                    controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     style: const TextStyle(color: Colors.black),
-                    decoration: _inputDecoration("Email"), // Phone → Email
-                    validator: (v) =>
-                        v == null || v.isEmpty ? "Enter email" : null,
+                    textInputAction: TextInputAction.next,
+                    autofillHints: const [AutofillHints.email],
+                    decoration: _inputDecoration('Email'),
+                    validator: (value) {
+                      final email = value?.trim() ?? '';
+                      if (email.isEmpty) return 'ইমেইল লিখুন।';
+                      if (!email.contains('@') || !email.contains('.')) {
+                        return 'সঠিক ইমেইল ঠিকানা লিখুন।';
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 15),
                   TextFormField(
-                    controller: passwordController,
-                    obscureText: true,
+                    controller: _passwordController,
+                    obscureText: _obscurePassword,
+                    enableSuggestions: false,
+                    autocorrect: false,
                     style: const TextStyle(color: Colors.black),
-                    decoration: _inputDecoration("Password"),
-                    validator: (v) => v == null || v.isEmpty
-                        ? "Enter password"
-                        : v.length < 6
-                        ? "Password must be 6+ characters"
+                    autofillHints: const [AutofillHints.newPassword],
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) => _signUp(),
+                    decoration: _inputDecoration('Password').copyWith(
+                      suffixIcon: IconButton(
+                        onPressed: () => setState(
+                          () => _obscurePassword = !_obscurePassword,
+                        ),
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_rounded
+                              : Icons.visibility_off_rounded,
+                        ),
+                      ),
+                    ),
+                    validator: (value) => value == null || value.isEmpty
+                        ? 'পাসওয়ার্ড লিখুন।'
+                        : value.length < 8
+                        ? 'পাসওয়ার্ড কমপক্ষে ৮ অক্ষরের হতে হবে।'
                         : null,
                   ),
                   const SizedBox(height: 30),
@@ -136,8 +192,13 @@ class _SignUpPageState extends State<SignUpPage> {
                         borderRadius: BorderRadius.circular(15),
                       ),
                     ),
-                    onPressed: _signUp,
-                    child: const Text("Submit"),
+                    onPressed: _isSubmitting ? null : _signUp,
+                    child: _isSubmitting
+                        ? const SizedBox.square(
+                            dimension: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2.4),
+                          )
+                        : const Text('Create account'),
                   ),
                 ],
               ),

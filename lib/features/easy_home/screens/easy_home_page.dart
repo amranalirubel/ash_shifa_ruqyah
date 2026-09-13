@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../core/app_colors.dart';
 import '../data/repositories/easy_home_repository.dart';
 import '../models/flat_model.dart';

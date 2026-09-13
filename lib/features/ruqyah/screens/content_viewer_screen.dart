@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../data/models/problem_model.dart';
 
 class ContentViewerScreen extends StatefulWidget {
@@ -24,7 +25,9 @@ class _ContentViewerScreenState extends State<ContentViewerScreen> {
   @override
   void initState() {
     super.initState();
-    currentIndex = widget.initialIndex;
+    currentIndex = widget.contentList.isEmpty
+        ? 0
+        : widget.initialIndex.clamp(0, widget.contentList.length - 1).toInt();
     _controller = PageController(initialPage: currentIndex);
   }
 
@@ -80,6 +83,10 @@ class _ContentViewerScreenState extends State<ContentViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.contentList.isEmpty) {
+      return _EmptyContentScaffold(title: widget.screenTitle);
+    }
+
     return Scaffold(
       body: Stack(
         children: [
@@ -203,6 +210,28 @@ class _ContentViewerScreenState extends State<ContentViewerScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _EmptyContentScaffold extends StatelessWidget {
+  const _EmptyContentScaffold({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'এই কনটেন্টটি এখনো পাওয়া যায়নি। কিছুক্ষণ পরে আবার চেষ্টা করুন।',
+            textAlign: TextAlign.center,
+          ),
+        ),
       ),
     );
   }
