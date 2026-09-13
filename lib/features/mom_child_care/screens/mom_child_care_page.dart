@@ -413,7 +413,7 @@ class _FirebaseContentPageState extends State<_FirebaseContentPage> {
   final _search = TextEditingController();
 
   bool _loading = false;
-  bool _usingCloudData = false;
+  MomChildCloudStatus _cloudStatus = MomChildCloudStatus.checking;
   String? _error;
   String _query = '';
   Map<String, dynamic> _document = const {};
@@ -440,15 +440,15 @@ class _FirebaseContentPageState extends State<_FirebaseContentPage> {
     }
 
     try {
-      final data = widget.type == _ContentType.problems
-          ? await _repo.getProblemsContent()
-          : await _repo.getParentingGuideContent();
+      final result = await _repo.getResolvedContentDocument(
+        widget.type.documentId,
+      );
 
       if (!mounted) return;
 
-      if (data.isNotEmpty) {
-        _document = data;
-        _usingCloudData = true;
+      if (result.data.isNotEmpty) {
+        _document = result.data;
+        _cloudStatus = result.cloudStatus;
         _error = null;
       } else if (_document.isEmpty) {
         _error =
@@ -456,9 +456,9 @@ class _FirebaseContentPageState extends State<_FirebaseContentPage> {
             'Firestore path পরীক্ষা করুন: '
             'mom_child_care/${widget.type.documentId}';
       }
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
-      _usingCloudData = false;
+      _cloudStatus = MomChildCloudStatus.unavailable;
       if (_document.isEmpty) {
         _error =
             'কনটেন্ট লোড করা যায়নি। Firestore rules, project এবং internet '
@@ -472,8 +472,9 @@ class _FirebaseContentPageState extends State<_FirebaseContentPage> {
   }
 
   List<Map<String, dynamic>> _mapList(dynamic raw) {
-    final list = raw as List<dynamic>? ?? const [];
-    return list
+    if (raw is! List) return const [];
+
+    return raw
         .whereType<Map>()
         .map((e) => Map<String, dynamic>.from(e))
         .toList();
@@ -663,7 +664,7 @@ class _FirebaseContentPageState extends State<_FirebaseContentPage> {
         const SizedBox(width: 7),
         Expanded(
           child: Text(
-            '${_usingCloudData ? 'Cloud' : 'Offline'} content • '
+            '${_momChildSourceLabel(_cloudStatus)} • '
             '$_topicCountটি বিষয় • $categoryCountটি বিভাগ',
             style: const TextStyle(color: Color(0x73FFFFFF), fontSize: 12.5),
           ),
@@ -2271,7 +2272,7 @@ class _CloudBackedStaticListPageState
 
   late List<Map<String, dynamic>> _data;
   late String _intro;
-  bool _usingCloudData = false;
+  MomChildCloudStatus _cloudStatus = MomChildCloudStatus.checking;
 
   @override
   void initState() {
@@ -2283,8 +2284,12 @@ class _CloudBackedStaticListPageState
 
   Future<void> _refresh() async {
     try {
-      final document = await _repository.getContentDocument(widget.documentId);
-      final rawSections = document['sections'] as List<dynamic>? ?? const [];
+      final result = await _repository.getResolvedContentDocument(
+        widget.documentId,
+      );
+      final document = result.data;
+      final raw = document['sections'];
+      final rawSections = raw is List ? raw : const [];
       final sections = rawSections
           .whereType<Map>()
           .map((item) => Map<String, dynamic>.from(item))
@@ -2297,7 +2302,7 @@ class _CloudBackedStaticListPageState
         _intro = document['intro']?.toString().trim().isNotEmpty == true
             ? document['intro'].toString()
             : widget.intro;
-        _usingCloudData = true;
+        _cloudStatus = result.cloudStatus;
       });
     } catch (error) {
       // The bundled content remains visible offline or when rules/network are
@@ -2315,10 +2320,20 @@ class _CloudBackedStaticListPageState
       icon: widget.icon,
       color: widget.color,
       data: _data,
-      sourceLabel: _usingCloudData ? 'Cloud content' : 'Offline content',
+      sourceLabel: _momChildSourceLabel(_cloudStatus),
       warning: widget.warning,
     );
   }
+}
+
+String _momChildSourceLabel(MomChildCloudStatus status) {
+  return switch (status) {
+    MomChildCloudStatus.current => 'Cloud content',
+    MomChildCloudStatus.missing => 'Built-in content • Cloud document missing',
+    MomChildCloudStatus.invalid => 'Built-in content • Cloud repair needed',
+    MomChildCloudStatus.unavailable => 'Built-in content • Offline',
+    MomChildCloudStatus.checking => 'Built-in content • Checking cloud',
+  };
 }
 
 class _StaticListPage extends StatelessWidget {
@@ -2341,7 +2356,8 @@ class _StaticListPage extends StatelessWidget {
   });
 
   void _open(BuildContext context, Map<String, dynamic> item) {
-    final rawItems = item['items'] as List<dynamic>? ?? const [];
+    final raw = item['items'];
+    final rawItems = raw is List ? raw : const [];
     final model = ProblemModel(
       title: item['title']?.toString() ?? title,
       items: rawItems.map((raw) {

@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../features/mom_child_care/data/mom_child_content_validator.dart';
+
 const String _momChildContentVersion = '2026-08-11-full-v1';
 
 final String _problemsJson =
@@ -477,9 +479,10 @@ List<Map<String, dynamic>> buildMomChildCareSeedDocuments() {
 /// Uploads the six requested documents under `mom_child_care`.
 ///
 /// Each document has its own transaction, so one failure cannot roll back
-/// documents already completed. Existing documents stay untouched by default.
-/// For an intentional repair, [mergeExisting] updates bundled fields while
-/// preserving all other fields and never deleting a document.
+/// documents already completed. Missing and structurally invalid documents are
+/// repaired by default. Canonical existing documents stay untouched unless
+/// [mergeExisting] is enabled. All updates are merges and no document is ever
+/// deleted.
 Future<void> seedMomChildCareFullVersion({
   bool mergeExisting = false,
   FirebaseFirestore? firestore,
@@ -496,7 +499,11 @@ Future<void> seedMomChildCareFullVersion({
 
       if (!snapshot.exists) {
         transaction.set(reference, data);
-      } else if (mergeExisting) {
+      } else if (mergeExisting ||
+          !MomChildContentValidator.isCanonicalDocument(
+            documentId,
+            snapshot.data() ?? const <String, dynamic>{},
+          )) {
         transaction.set(reference, data, SetOptions(merge: true));
       }
     });

@@ -45,8 +45,8 @@ user-owned data remain private.
 
 ## Seed Firestore safely
 
-Seeding is disabled during a normal app start. To create only missing managed
-documents, run:
+Seeding is disabled during a normal app start. To create missing managed
+documents and repair incomplete ones, run:
 
 ```bash
 flutter run --dart-define=SEED_FIRESTORE=true
@@ -62,8 +62,10 @@ documents in app order (also stored in `displayOrder`):
 5. `learning_development`
 6. `instant_care`
 
-The default mode never updates or deletes an existing document. If existing
-documents are incomplete and an intentional repair is needed, use merge mode:
+The default mode creates missing documents and merge-repairs documents that do
+not pass the canonical schema/version validation. Complete canonical documents
+stay untouched. If an intentional refresh of every managed field is needed,
+use merge mode:
 
 ```bash
 flutter run \
@@ -71,9 +73,9 @@ flutter run \
   --dart-define=MERGE_EXISTING_SEED_DATA=true
 ```
 
-Merge mode updates the bundled managed fields but preserves unrelated existing
-fields. Neither mode deletes documents. Stop the seed build after it succeeds
-and return to a normal `flutter run`.
+Both automatic repair and merge mode preserve unrelated existing fields. No
+mode deletes documents. Stop the seed build after it succeeds and return to a
+normal `flutter run`.
 
 ## Data architecture
 
@@ -84,9 +86,11 @@ and return to a normal `flutter run`.
 - SharedPreferences: device-only checklists and temporary preferences
 - Bundled Mom & Child Care content: immediate offline fallback
 
-Mom & Child Care shows bundled content immediately, then refreshes from
-Firestore in the background. This keeps the UI usable offline while Firestore
-remains the updateable cloud source.
+Mom & Child Care shows its complete bundled snapshot immediately, then checks
+Firestore in the background. Only a complete, supported cloud schema replaces
+the bundled snapshot; an old or partial cloud document can never blank the UI.
+Firestore remains the updateable source of truth and the bundle remains the
+verified offline recovery source.
 
 ## Quality checks
 

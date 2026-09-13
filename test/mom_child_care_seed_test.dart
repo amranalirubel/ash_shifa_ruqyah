@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:ash_shifa_ruqyah/features/mom_child_care/data/mom_child_content_validator.dart';
 import 'package:ash_shifa_ruqyah/utils/seed_mom_child_care.dart';
 
 void main() {
@@ -22,6 +23,13 @@ void main() {
         final data = document['data']! as Map<String, dynamic>;
         expect(data['title'], isNotEmpty);
         expect(data['displayOrder'], index + 1);
+        expect(
+          MomChildContentValidator.isCanonicalDocument(
+            document['id']! as String,
+            data,
+          ),
+          isTrue,
+        );
         _expectFirestoreSafe(data);
       }
 
@@ -31,6 +39,45 @@ void main() {
       expect(smartTools, contains('dailyTips'));
     },
   );
+
+  test('old or incomplete cloud documents cannot replace bundled content', () {
+    expect(
+      MomChildContentValidator.isCanonicalDocument('problems', {
+        'title': 'পুরোনো সমস্যা সমাধান',
+        'intro': 'অসম্পূর্ণ',
+        'sections': const [],
+      }),
+      isFalse,
+    );
+
+    expect(
+      MomChildContentValidator.isCanonicalDocument('parenting_guide', {
+        'title': 'পুরোনো প্যারেন্টিং গাইড',
+        'sections': [
+          {
+            'title': 'শিশুর সাথে যোগাযোগ',
+            'topics': [
+              {'title': 'একটি পুরোনো বিষয়'},
+            ],
+          },
+        ],
+      }),
+      isFalse,
+    );
+
+    expect(
+      MomChildContentValidator.isCanonicalDocument('problems', {
+        'title': 'ভুল schema',
+        'contentVersion': 'legacy',
+        'schemaVersion': 1,
+        'displayOrder': 1,
+        'topicCount': 1,
+        'categoryCount': 1,
+        'sections': 'this should have been a list',
+      }),
+      isFalse,
+    );
+  });
 }
 
 void _expectFirestoreSafe(dynamic value, {bool insideArray = false}) {
