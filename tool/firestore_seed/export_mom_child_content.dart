@@ -1,0 +1,24 @@
+import 'dart:convert';
+import 'dart:io';
+
+import '../../lib/utils/seed_mom_child_care.dart';
+
+void main(List<String> arguments) {
+  if (arguments.length != 1) {
+    stderr.writeln(
+      'Usage: dart tool/firestore_seed/export_mom_child_content.dart '
+      '<output.json>',
+    );
+    exitCode = 64;
+    return;
+  }
+
+  final documents = buildMomChildCareSeedDocuments();
+  final output = File(arguments.single);
+  output.parent.createSync(recursive: true);
+  output.writeAsStringSync(
+    '${const JsonEncoder.withIndent('  ').convert(documents)}\n',
+  );
+
+  stdout.writeln('Exported ${documents.length} canonical documents.');
+}

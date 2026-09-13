@@ -77,6 +77,20 @@ Both automatic repair and merge mode preserve unrelated existing fields. No
 mode deletes documents. Stop the seed build after it succeeds and return to a
 normal `flutter run`.
 
+### Seed from GitHub Actions
+
+For a controlled server-side repair, run the manual **Seed Firebase Mom & Child
+Care** workflow from the `main` branch. It accepts only the exact project ID,
+validates all six bundled documents before connecting, and never runs on a push
+or pull request. A repaired document is first copied to
+`content_seed_backups`, then its managed fields are merged.
+
+The `firebase-production` GitHub Environment must contain the encrypted secret
+`FIREBASE_SERVICE_ACCOUNT_JSON`. Never commit or paste a service-account key in
+an issue, pull request, log, or chat. Run with `dry_run: true` first; after the
+preview succeeds, rerun with `dry_run: false`. Keep `force_refresh: false` for
+the normal repair so already-valid documents remain untouched.
+
 ## Data architecture
 
 - Firebase Auth: identity/session

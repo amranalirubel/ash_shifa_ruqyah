@@ -10,7 +10,7 @@ import 'firebase_options.dart';
 import 'core/app_colors.dart';
 import 'core/utils/seed_firestore.dart';
 import 'features/auth/screens/welcome_page.dart';
-import 'utils/seed_mom_child_care.dart';
+import 'utils/seed_mom_child_care_firestore.dart';
 
 const bool _seedFirestore = bool.fromEnvironment('SEED_FIRESTORE');
 const bool _mergeExistingSeedData = bool.fromEnvironment(
