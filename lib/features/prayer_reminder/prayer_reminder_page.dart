@@ -188,8 +188,9 @@ class _PrayerReminderPageState extends State<PrayerReminderPage> {
       // ✅ ফিক্স: await এর পর context ব্যবহারের আগে মাউন্টেড চেক
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text("Notification error")));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Notification error")));
     }
   }
 

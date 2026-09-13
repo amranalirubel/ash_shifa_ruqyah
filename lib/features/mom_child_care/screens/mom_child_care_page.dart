@@ -1983,7 +1983,8 @@ class _AgeBasedCarePage extends StatelessWidget {
     return _CloudBackedStaticListPage(
       documentId: 'age_based_care',
       title: 'বয়সভিত্তিক যত্ন',
-      intro: 'শিশুর বয়স অনুযায়ী বৃদ্ধি, মানসিক বিকাশ, খাবার, ঘুম, খেলা, শেখা ও সতর্কতা দেখুন।',
+      intro:
+          'শিশুর বয়স অনুযায়ী বৃদ্ধি, মানসিক বিকাশ, খাবার, ঘুম, খেলা, শেখা ও সতর্কতা দেখুন।',
       icon: Icons.child_care_rounded,
       color: const Color(0xFFF472B6),
       fallbackData: data,
@@ -2098,7 +2099,8 @@ class _LearningDevelopmentPage extends StatelessWidget {
     return _CloudBackedStaticListPage(
       documentId: 'learning_development',
       title: 'শেখা ও বিকাশ',
-      intro: 'শেখা শুধু বই নয়—ভাষা, মনোযোগ, অভ্যাস, সৃজনশীলতা, খেলা ও নৈতিক বিকাশও গুরুত্বপূর্ণ।',
+      intro:
+          'শেখা শুধু বই নয়—ভাষা, মনোযোগ, অভ্যাস, সৃজনশীলতা, খেলা ও নৈতিক বিকাশও গুরুত্বপূর্ণ।',
       icon: Icons.psychology_alt_rounded,
       color: const Color(0xFFA78BFA),
       fallbackData: data,
@@ -2225,7 +2227,8 @@ class _InstantCarePage extends StatelessWidget {
     return _CloudBackedStaticListPage(
       documentId: 'instant_care',
       title: 'তাৎক্ষণিক চিকিৎসা',
-      intro: 'প্রাথমিক করণীয় বোঝার জন্য। এটি রোগ নির্ণয় বা জরুরি চিকিৎসার বিকল্প নয়। শিশুর অবস্থা গুরুতর মনে হলে দ্রুত চিকিৎসা নিন।',
+      intro:
+          'প্রাথমিক করণীয় বোঝার জন্য। এটি রোগ নির্ণয় বা জরুরি চিকিৎসার বিকল্প নয়। শিশুর অবস্থা গুরুতর মনে হলে দ্রুত চিকিৎসা নিন।',
       icon: Icons.emergency_rounded,
       color: const Color(0xFFFB7185),
       fallbackData: data,

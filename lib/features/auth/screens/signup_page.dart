@@ -74,8 +74,9 @@ class _SignUpPageState extends State<SignUpPage> {
       }
     } on FirebaseAuthException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(_signUpMessage(e.code))));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_signUpMessage(e.code))));
       }
     } on FirebaseException catch (e) {
       // The Auth user may already exist even if the profile write failed.

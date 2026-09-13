@@ -121,9 +121,9 @@ class _ContentViewerScreenState extends State<ContentViewerScreen> {
                 Expanded(
                   child: GestureDetector(
                     onTapDown: (details) {
-                      final double screenWidth = MediaQuery.of(context)
-                          .size
-                          .width;
+                      final double screenWidth = MediaQuery.of(
+                        context,
+                      ).size.width;
                       if (details.globalPosition.dx < screenWidth / 2) {
                         _previousPage();
                       } else {

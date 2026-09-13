@@ -67,8 +67,9 @@ class _LoginPageState extends State<LoginPage> {
       }
     } on FirebaseAuthException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(_loginMessage(e.code))));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_loginMessage(e.code))));
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
