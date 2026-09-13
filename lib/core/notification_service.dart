@@ -1,6 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
-import 'package:flutter/foundation.dart';
 
 class NotificationService {
   static final _notifications = FlutterLocalNotificationsPlugin();
@@ -10,7 +10,7 @@ class NotificationService {
 
     const settings = InitializationSettings(android: android);
 
-    await _notifications.initialize(settings);
+    await _notifications.initialize(settings: settings);
   }
 
   static Future scheduleNotification(
@@ -30,6 +30,7 @@ class NotificationService {
       const androidDetails = AndroidNotificationDetails(
         'prayer_channel',
         'Prayer Notifications',
+        channelDescription: 'Prayer reminder notifications',
         importance: Importance.max,
         priority: Priority.high,
       );
@@ -37,17 +38,15 @@ class NotificationService {
       const details = NotificationDetails(android: androidDetails);
 
       await _notifications.zonedSchedule(
-        id,
-        title,
-        body,
-        scheduledTime,
-        details,
+        id: id,
+        title: title,
+        body: body,
+        scheduledDate: scheduledTime,
+        notificationDetails: details,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
       );
     } catch (e) {
-      debugPrint("Schedule Error: $e");
+      debugPrint('Schedule Error: $e');
     }
   }
 }

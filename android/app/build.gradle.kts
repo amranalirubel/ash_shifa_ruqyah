@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.example.ash_shifa_ruqyah"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

@@ -25,9 +25,7 @@ class NotificationService {
       android: androidSettings,
     );
 
-    // flutter_local_notifications 17.x: initialize() uses
-    // InitializationSettings as the first positional argument.
-    await plugin.initialize(initializationSettings);
+    await plugin.initialize(settings: initializationSettings);
 
     final androidPlugin = plugin
         .resolvePlatformSpecificImplementation<
@@ -107,24 +105,19 @@ class NotificationService {
       ),
     );
 
-    // flutter_local_notifications 17.x:
-    // first 5 arguments are positional.
     await plugin.zonedSchedule(
-      id,
-      title,
-      body,
-      tzDate,
-      details,
+      id: id,
+      title: title,
+      body: body,
+      scheduledDate: tzDate,
+      notificationDetails: details,
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
       payload: payload,
     );
   }
 
   Future<void> cancel(int id) async {
-    // flutter_local_notifications 17.x: cancel() takes id positionally.
-    await plugin.cancel(id);
+    await plugin.cancel(id: id);
   }
 }

@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../data/user_profile_repository.dart';
+import 'home_page.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -69,7 +70,12 @@ class _SignUpPageState extends State<SignUpPage> {
       await _profiles.createProfile(user: user, name: _nameController.text);
 
       if (mounted) {
-        Navigator.of(context).popUntil((route) => route.isFirst);
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (_) => HomePage(isDarkMode: false, toggleTheme: () {}),
+          ),
+          (route) => false,
+        );
       }
     } on FirebaseAuthException catch (e) {
       if (mounted) {

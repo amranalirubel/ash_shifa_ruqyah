@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../data/user_profile_repository.dart';
+import 'home_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -62,7 +63,12 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       if (mounted) {
-        Navigator.of(context).popUntil((route) => route.isFirst);
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (_) => HomePage(isDarkMode: false, toggleTheme: () {}),
+          ),
+          (route) => false,
+        );
       }
     } on FirebaseAuthException catch (e) {
       if (mounted) {
