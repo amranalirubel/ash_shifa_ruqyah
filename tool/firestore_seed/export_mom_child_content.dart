@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+// This exporter intentionally runs without bootstrapping the Flutter package.
+// ignore: avoid_relative_lib_imports
 import '../../lib/utils/seed_mom_child_care.dart';
 
 void main(List<String> arguments) {
