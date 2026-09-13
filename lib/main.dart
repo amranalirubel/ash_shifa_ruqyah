@@ -1,10 +1,15 @@
+import 'dart:async';
+
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'core/utils/seed_firestore.dart';
+import 'package:screen_security/screen_security.dart';
+
 import 'firebase_options.dart';
 import 'core/app_colors.dart';
+import 'core/utils/seed_firestore.dart';
 import 'features/auth/screens/welcome_page.dart';
-import 'package:screen_security/screen_security.dart';
+import 'utils/seed_mom_child_care.dart';
 
 //import 'package:ash_shifa_ruqyah/utils/seed_mom_child_care.dart';
 
@@ -15,19 +20,37 @@ void main() async {
 
   await ScreenSecurity().disable();
 
-  // Firestore seeding is intentionally disabled here because the current Firebase
-  // project does not have a Firestore database configured yet.
-  // Re-enable this only after the project is initialized.
-
-  // ✅ Mom & Child Care fullVersion 11 Aug
-  // সমস্যা সমাধান + প্যারেন্টিং গাইড Firebase-এ upload করবে
-  // try {
-  //    await seedMomChildCareFullVersion();
-  //  } catch (e) {
-  //    debugPrint('Mom & Child Care seed failed: $e');
-  //  }
-
+  // Firestore seeding runs in the background so the app can open immediately.
+  // It waits for authentication, and the Mom & Child Care helper creates only
+  // missing documents without overwriting or deleting existing data.
   runApp(const MyApp());
+  unawaited(_seedFirestoreInBackground());
+}
+
+Future<void> _seedFirestoreInBackground() async {
+  // Current Firestore rules allow app-data writes only for authenticated users.
+  await FirebaseAuth.instance.authStateChanges().firstWhere(
+    (user) => user != null,
+  );
+
+  // Seed Mom & Child Care first so another collection cannot delay or prevent
+  // these six documents from being created.
+  try {
+    await seedMomChildCareFullVersion();
+    debugPrint('Mom & Child Care seed completed successfully.');
+  } on FirebaseException catch (e) {
+    debugPrint(
+      'Mom & Child Care seed failed [${e.code}]: ${e.message ?? e.toString()}',
+    );
+  } catch (e) {
+    debugPrint('Mom & Child Care seed failed: $e');
+  }
+
+  try {
+    await seedFirestoreData();
+  } catch (e) {
+    debugPrint('General Firestore seed failed: $e');
+  }
 }
 
 class MyApp extends StatefulWidget {

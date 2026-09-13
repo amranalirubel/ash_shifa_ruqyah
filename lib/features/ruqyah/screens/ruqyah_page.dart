@@ -41,15 +41,27 @@ class _RuqyahPageState extends State<RuqyahPage> {
 
   Future<void> _loadAllData() async {
     try {
-      _duaList = await repo.getDuaList();
-      _problems = await repo.getProblems();
-      _basicsOfRuqyah = await repo.getBasicsOfRuqyah();
-      _dailyAdhkarList = await repo.getDailyAdhkarList();
-      _stepByStepList = await repo.getStepByStepList();
-      _faqList = await repo.getFaqList();
-      _diagnosisList = await repo.getDiagnosisList();
-      _freeAudioList = await repo.getFreeAudioList();
-      _paidAudioList = await repo.getPaidAudioList();
+      final results = await Future.wait([
+        repo.getDuaList(),
+        repo.getProblems(),
+        repo.getBasicsOfRuqyah(),
+        repo.getDailyAdhkarList(),
+        repo.getStepByStepList(),
+        repo.getFaqList(),
+        repo.getDiagnosisList(),
+        repo.getFreeAudioList(),
+        repo.getPaidAudioList(),
+      ]);
+
+      _duaList = results[0] as List<DuaModel>;
+      _problems = results[1] as List<ProblemModel>;
+      _basicsOfRuqyah = results[2] as List<ProblemModel>;
+      _dailyAdhkarList = results[3] as List<ProblemModel>;
+      _stepByStepList = results[4] as List<ProblemModel>;
+      _faqList = results[5] as List<ProblemModel>;
+      _diagnosisList = results[6] as List<ProblemModel>;
+      _freeAudioList = results[7] as List<Map<String, dynamic>>;
+      _paidAudioList = results[8] as List<Map<String, dynamic>>;
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(

@@ -46,6 +46,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '179902973866',
     projectId: 'ash-shifa-ruqyah',
     authDomain: 'ash-shifa-ruqyah.firebaseapp.com',
+    databaseURL: 'https://ash-shifa-ruqyah-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'ash-shifa-ruqyah.firebasestorage.app',
     measurementId: 'G-GWKXB4CYHK',
   );
@@ -55,9 +56,9 @@ class DefaultFirebaseOptions {
     appId: '1:179902973866:android:9e2fbcfa012cc426a88dd3',
     messagingSenderId: '179902973866',
     projectId: 'ash-shifa-ruqyah',
+    databaseURL: 'https://ash-shifa-ruqyah-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'ash-shifa-ruqyah.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyByQjTXkEJdIIF8kCTIC6mpN0r7hnS7En0',
     appId: '1:179902973866:ios:b24bd6d66d4bfa0aa88dd3',

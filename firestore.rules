@@ -1,0 +1,55 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    match /users/{userId} {
+      allow create, read, update, delete:
+        if signedIn() && request.auth.uid == userId;
+    }
+
+    // These six documents can be created only when missing. Client apps can
+    // neither update nor delete them, so existing Mom & Child Care data stays
+    // protected even if the seeder runs again.
+    match /mom_child_care/{documentId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && documentId in [
+          'problems',
+          'parenting_guide',
+          'smart_tools',
+          'age_based_care',
+          'learning_development',
+          'instant_care'
+        ];
+      allow update, delete: if false;
+    }
+
+    match /prayer_reminder/{document=**} {
+      allow read, write: if signedIn();
+    }
+
+    match /health_tips/{document=**} {
+      allow read, write: if signedIn();
+    }
+
+    match /easy_home/{document=**} {
+      allow read, write: if signedIn();
+    }
+
+    match /ruqyah/{document=**} {
+      allow read, write: if signedIn();
+    }
+
+    match /bazzer_reminder/{document=**} {
+      allow read, write: if signedIn();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
