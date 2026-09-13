@@ -1,0 +1,79 @@
+name: Seed Firebase Mom & Child Care
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_project:
+        description: 'Type ash-shifa-ruqyah to confirm the target project'
+        required: true
+        type: string
+      dry_run:
+        description: 'Validate and preview without writing'
+        required: true
+        default: true
+        type: boolean
+      force_refresh:
+        description: 'Refresh even already-valid canonical documents'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firebase-mom-child-content-seed
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    name: Validate, back up, and seed
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: firebase-production
+
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+
+      - name: Verify protected inputs
+        env:
+          CONFIRM_PROJECT: ${{ inputs.confirm_project }}
+          SELECTED_REF: ${{ github.ref }}
+        run: |
+          test "$SELECTED_REF" = "refs/heads/main"
+          test "$CONFIRM_PROJECT" = "ash-shifa-ruqyah"
+
+      - name: Set up Dart
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Export and validate bundled content
+        run: >-
+          dart tool/firestore_seed/export_mom_child_content.dart
+          "$RUNNER_TEMP/mom-child-content.json"
+
+      - name: Authenticate to the exact Firebase project
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          project_id: ash-shifa-ruqyah
+          create_credentials_file: true
+
+      - name: Install the pinned Firebase Admin SDK
+        run: npm ci --prefix tool/firestore_seed --omit=dev --no-audit --no-fund
+
+      - name: Seed canonical content
+        env:
+          CONFIRM_PROJECT: ${{ inputs.confirm_project }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          FORCE_REFRESH: ${{ inputs.force_refresh }}
+        run: >-
+          node tool/firestore_seed/seed.mjs
+          "$RUNNER_TEMP/mom-child-content.json"

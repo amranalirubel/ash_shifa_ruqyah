@@ -34,3 +34,16 @@ jobs:
 
       - name: Test
         run: flutter test
+
+      - name: Install Firebase seeder dependencies
+        run: npm ci --prefix tool/firestore_seed --omit=dev --no-audit --no-fund
+
+      - name: Validate Firebase seed payload
+        env:
+          CONFIRM_PROJECT: ash-shifa-ruqyah
+        run: |
+          dart tool/firestore_seed/export_mom_child_content.dart \
+            "$RUNNER_TEMP/mom-child-content.json"
+          node --check tool/firestore_seed/seed.mjs
+          node tool/firestore_seed/seed.mjs \
+            "$RUNNER_TEMP/mom-child-content.json" --validate-only

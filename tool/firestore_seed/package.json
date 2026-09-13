@@ -1,0 +1,11 @@
+{
+  "name": "ash-shifa-firestore-seeder",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "firebase-admin": "14.4.0"
+  }
+}
