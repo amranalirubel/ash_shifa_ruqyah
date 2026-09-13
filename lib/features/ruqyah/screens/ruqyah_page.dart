@@ -1,5 +1,6 @@
 // lib/features/ruqyah/screens/ruqyah_page.dart
 import 'package:flutter/material.dart';
+
 import '../../../core/app_colors.dart';
 import '../../../data/repositories/ruqyah_repository.dart';
 import '../../../data/models/problem_model.dart';
@@ -62,11 +63,15 @@ class _RuqyahPageState extends State<RuqyahPage> {
       _diagnosisList = results[6] as List<ProblemModel>;
       _freeAudioList = results[7] as List<Map<String, dynamic>>;
       _paidAudioList = results[8] as List<Map<String, dynamic>>;
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('ডাটা লোড করতে সমস্যা: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'ক্লাউড কনটেন্ট লোড করা যায়নি। ইন্টারনেট ও Firebase setup পরীক্ষা করুন।',
+            ),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);

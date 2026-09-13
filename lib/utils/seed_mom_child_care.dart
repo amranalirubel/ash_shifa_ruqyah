@@ -20,11 +20,11 @@ final String _parentingJson =
 ///
 /// Source: "Mom&ChildCare_fullVersion 11 Aug"
 ///
-/// Existing documents are never updated, overwritten, or deleted. Only a
-/// missing document is created, so the seeder is safe to run more than once.
-Future<void> seedMomChildCareFullVersion() async {
-  final firestore = FirebaseFirestore.instance;
-
+/// Builds the six canonical documents in their display order.
+///
+/// This is also the app's bundled offline source, keeping local and cloud
+/// content on the same schema and version.
+List<Map<String, dynamic>> buildMomChildCareSeedDocuments() {
   final problems = Map<String, dynamic>.from(jsonDecode(_problemsJson) as Map);
   final parenting = Map<String, dynamic>.from(
     jsonDecode(_parentingJson) as Map,
@@ -71,6 +71,12 @@ Future<void> seedMomChildCareFullVersion() async {
               'description': 'অ্যালার্জি ও স্বাস্থ্য ইতিহাস',
             },
           ],
+          // Country-specific vaccination data must be reviewed by an admin
+          // before publishing. Keeping these fields in the canonical
+          // smart_tools document avoids creating legacy seventh/eighth docs.
+          'vaccinationSchedule': <Map<String, dynamic>>[],
+          'milestones': <Map<String, dynamic>>[],
+          'dailyTips': <String>[],
         },
         topicCount: 6,
         categoryCount: 6,
@@ -81,8 +87,7 @@ Future<void> seedMomChildCareFullVersion() async {
       'data': _withMeta(
         {
           'title': 'বয়সভিত্তিক যত্ন',
-          'intro':
-              'শিশুর বয়স অনুযায়ী বৃদ্ধি, মানসিক বিকাশ, খাবার, ঘুম, খেলা, শেখা ও সতর্কতা দেখুন।',
+          'intro': 'শিশুর বয়স অনুযায়ী বৃদ্ধি, মানসিক বিকাশ, খাবার, ঘুম, খেলা, শেখা ও সতর্কতা দেখুন।',
           'sections': [
             {
               'title': '০–৬ মাস',
@@ -230,8 +235,7 @@ Future<void> seedMomChildCareFullVersion() async {
       'data': _withMeta(
         {
           'title': 'শেখা ও বিকাশ',
-          'intro':
-              'শেখা শুধু বই নয়—ভাষা, মনোযোগ, অভ্যাস, সৃজনশীলতা, খেলা ও নৈতিক বিকাশও গুরুত্বপূর্ণ।',
+          'intro': 'শেখা শুধু বই নয়—ভাষা, মনোযোগ, অভ্যাস, সৃজনশীলতা, খেলা ও নৈতিক বিকাশও গুরুত্বপূর্ণ।',
           'sections': [
             {
               'title': 'কথা ও ভাষা শেখা',
@@ -345,8 +349,7 @@ Future<void> seedMomChildCareFullVersion() async {
       'data': _withMeta(
         {
           'title': 'তাৎক্ষণিক চিকিৎসা',
-          'intro':
-              'প্রাথমিক করণীয় বোঝার জন্য। এটি রোগ নির্ণয় বা জরুরি চিকিৎসার বিকল্প নয়। শিশুর অবস্থা গুরুতর মনে হলে দ্রুত চিকিৎসা নিন।',
+          'intro': 'প্রাথমিক করণীয় বোঝার জন্য। এটি রোগ নির্ণয় বা জরুরি চিকিৎসার বিকল্প নয়। শিশুর অবস্থা গুরুতর মনে হলে দ্রুত চিকিৎসা নিন।',
           'sections': [
             {
               'title': 'জ্বর',
@@ -460,30 +463,41 @@ Future<void> seedMomChildCareFullVersion() async {
     },
   ];
 
-  await firestore.runTransaction((transaction) async {
-    final references = docs
-        .map(
-          (doc) =>
-              firestore.collection('mom_child_care').doc(doc['id'] as String),
-        )
-        .toList(growable: false);
+  for (var index = 0; index < docs.length; index++) {
+    final data = docs[index]['data']! as Map<String, dynamic>;
+    data['displayOrder'] = index + 1;
+  }
 
-    // Firestore transactions require reads before writes. Reading all six
-    // documents first also lets us preserve every existing document exactly.
-    final snapshots = <DocumentSnapshot<Map<String, dynamic>>>[];
-    for (final reference in references) {
-      snapshots.add(await transaction.get(reference));
-    }
+  return docs;
+}
 
-    for (var index = 0; index < docs.length; index++) {
-      if (!snapshots[index].exists) {
-        transaction.set(
-          references[index],
-          docs[index]['data'] as Map<String, dynamic>,
-        );
+/// Uploads the six requested documents under `mom_child_care`.
+///
+/// Each document has its own transaction, so one failure cannot roll back
+/// documents already completed. Existing documents stay untouched by default.
+/// For an intentional repair, [mergeExisting] updates bundled fields while
+/// preserving all other fields and never deleting a document.
+Future<void> seedMomChildCareFullVersion({
+  bool mergeExisting = false,
+  FirebaseFirestore? firestore,
+}) async {
+  final database = firestore ?? FirebaseFirestore.instance;
+
+  for (final document in buildMomChildCareSeedDocuments()) {
+    final documentId = document['id']! as String;
+    final data = document['data']! as Map<String, dynamic>;
+    final reference = database.collection('mom_child_care').doc(documentId);
+
+    await database.runTransaction((transaction) async {
+      final snapshot = await transaction.get(reference);
+
+      if (!snapshot.exists) {
+        transaction.set(reference, data);
+      } else if (mergeExisting) {
+        transaction.set(reference, data, SetOptions(merge: true));
       }
-    }
-  });
+    });
+  }
 }
 
 Map<String, dynamic> _withMeta(
@@ -492,11 +506,44 @@ Map<String, dynamic> _withMeta(
   required int categoryCount,
 }) {
   return {
-    ...data,
+    ..._firestoreSafeMap(data),
     'contentVersion': _momChildContentVersion,
+    'schemaVersion': 1,
     'sourceFile': 'Mom&ChildCare_fullVersion 11 Aug',
     'topicCount': topicCount,
     'categoryCount': categoryCount,
     'updatedAt': FieldValue.serverTimestamp(),
   };
+}
+
+Map<String, dynamic> _firestoreSafeMap(Map<String, dynamic> value) {
+  return value.map((key, item) => MapEntry(key, _firestoreSafeValue(item)));
+}
+
+dynamic _firestoreSafeValue(dynamic value) {
+  if (value is Map) {
+    return _firestoreSafeMap(Map<String, dynamic>.from(value));
+  }
+
+  if (value is List) {
+    return value
+        .map((item) {
+          // Firestore rejects an array directly nested in another array. The
+          // bundled source uses [title, description] pairs, so preserve their
+          // meaning as named map fields.
+          if (item is List) {
+            return {
+              'title': item.isNotEmpty ? _firestoreSafeValue(item.first) : '',
+              'description': item.length > 1
+                  ? _firestoreSafeValue(item[1])
+                  : '',
+            };
+          }
+
+          return _firestoreSafeValue(item);
+        })
+        .toList(growable: false);
+  }
+
+  return value;
 }

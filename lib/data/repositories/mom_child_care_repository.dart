@@ -3,8 +3,28 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../utils/seed_mom_child_care.dart';
+
 class MomChildCareRepository {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  MomChildCareRepository({FirebaseFirestore? firestore})
+    : _firestore = firestore ?? FirebaseFirestore.instance;
+
+  final FirebaseFirestore _firestore;
+
+  static final Map<String, Map<String, dynamic>> _bundledDocuments = {
+    for (final document in buildMomChildCareSeedDocuments())
+      document['id']! as String: document['data']! as Map<String, dynamic>,
+  };
+
+  Map<String, dynamic> getBundledDocument(String documentId) {
+    return Map<String, dynamic>.from(
+      _bundledDocuments[documentId] ?? const <String, dynamic>{},
+    );
+  }
+
+  Future<Map<String, dynamic>> getContentDocument(String documentId) {
+    return _getDocument(documentId);
+  }
 
   Future<Map<String, dynamic>> _getDocument(String docName) async {
     final ref = _firestore.collection('mom_child_care').doc(docName);
@@ -90,18 +110,23 @@ class MomChildCareRepository {
 
   // Smart tools
   Future<List<Map<String, dynamic>>> getMilestones() async {
-    final data = await _getDocument('milestones');
-    return _toMapList(data['list']);
+    final data = await _getDocument('smart_tools');
+    return _toMapList(data['milestones']);
+  }
+
+  Future<List<Map<String, dynamic>>> getVaccinationSchedule() async {
+    final data = await _getDocument('smart_tools');
+    return _toMapList(data['vaccinationSchedule']);
   }
 
   Future<List<Map<String, dynamic>>> getFeatures() async {
-    final data = await _getDocument('features');
-    return _toMapList(data['list']);
+    final data = await _getDocument('smart_tools');
+    return _toMapList(data['sections']);
   }
 
   Future<List<String>> getDailyTips() async {
-    final data = await _getDocument('daily_tips');
-    final list = data['tips'] as List<dynamic>? ?? const [];
+    final data = await _getDocument('smart_tools');
+    final list = data['dailyTips'] as List<dynamic>? ?? const [];
     return list.map((e) => e.toString()).toList();
   }
 

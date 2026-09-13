@@ -86,5 +86,4 @@ class DefaultFirebaseOptions {
     storageBucket: 'ash-shifa-ruqyah.firebasestorage.app',
     measurementId: 'G-L9YMQFKZ73',
   );
-
 }

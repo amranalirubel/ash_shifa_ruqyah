@@ -1,6 +1,8 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
+
 import '../../../data/models/dua_model.dart';
 
 class DuaViewerScreen extends StatefulWidget {
@@ -29,7 +31,9 @@ class _DuaViewerScreenState extends State<DuaViewerScreen> {
   @override
   void initState() {
     super.initState();
-    currentIndex = widget.initialIndex;
+    currentIndex = widget.duaList.isEmpty
+        ? 0
+        : widget.initialIndex.clamp(0, widget.duaList.length - 1).toInt();
     _pageController = PageController(initialPage: currentIndex);
   }
 
@@ -64,6 +68,7 @@ class _DuaViewerScreenState extends State<DuaViewerScreen> {
   void _toggleBookmark() => setState(() => isBookmarked = !isBookmarked);
 
   void _shareCurrent() {
+    if (widget.duaList.isEmpty) return;
     final dua = widget.duaList[currentIndex];
     SharePlus.instance.share(
       ShareParams(text: "${dua.title}\n\n${dua.arabic}\n\n${dua.translation}"),
@@ -79,6 +84,21 @@ class _DuaViewerScreenState extends State<DuaViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.duaList.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('দোয়া')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'দোয়ার কনটেন্ট এখনো পাওয়া যায়নি। কিছুক্ষণ পরে আবার চেষ্টা করুন।',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       body: Stack(
         children: [

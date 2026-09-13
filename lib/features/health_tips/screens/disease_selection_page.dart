@@ -1,6 +1,8 @@
 // lib/features/health_tips/screens/disease_selection_page.dart
 import 'package:flutter/material.dart';
+
 import '../../../data/repositories/health_repository.dart';
+
 //import 'diet_detail_screen.dart';
 
 class DiseaseSelectionPage extends StatefulWidget {
@@ -15,6 +17,7 @@ class _DiseaseSelectionPageState extends State<DiseaseSelectionPage> {
   Map<String, dynamic> diseaseMap = {};
   String? selectedDisease;
   bool isLoading = true;
+  bool hasLoadError = false;
 
   @override
   void initState() {
@@ -23,11 +26,22 @@ class _DiseaseSelectionPageState extends State<DiseaseSelectionPage> {
   }
 
   Future<void> _loadData() async {
-    final data = await repo.getDiseaseFoodMap();
-    setState(() {
-      diseaseMap = data;
-      isLoading = false;
-    });
+    try {
+      final data = await repo.getDiseaseFoodMap();
+      if (!mounted) return;
+      setState(() {
+        diseaseMap = data;
+        hasLoadError = false;
+        isLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        diseaseMap = {};
+        hasLoadError = true;
+        isLoading = false;
+      });
+    }
   }
 
   @override
@@ -49,6 +63,8 @@ class _DiseaseSelectionPageState extends State<DiseaseSelectionPage> {
           ? const Center(
               child: CircularProgressIndicator(color: Colors.greenAccent),
             )
+          : hasLoadError
+          ? _buildLoadError()
           : SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               physics: const BouncingScrollPhysics(),
@@ -120,6 +136,39 @@ class _DiseaseSelectionPageState extends State<DiseaseSelectionPage> {
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _buildLoadError() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.cloud_off_rounded,
+              color: Colors.white54,
+              size: 44,
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'স্বাস্থ্য তথ্য লোড করা যায়নি। ইন্টারনেট ও Firebase setup পরীক্ষা করুন।',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white70, height: 1.5),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () {
+                setState(() => isLoading = true);
+                _loadData();
+              },
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('আবার চেষ্টা করুন'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

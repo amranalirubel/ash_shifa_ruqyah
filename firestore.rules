@@ -6,46 +6,97 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/app_admins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/app_admins/$(request.auth.uid)).data.enabled == true;
+    }
+
+    function validProfileCreate(userId) {
+      return isOwner(userId)
+        && request.resource.data.keys().hasAll(['uid', 'name', 'email'])
+        && request.resource.data.keys().hasOnly([
+          'uid',
+          'name',
+          'email',
+          'phoneNumber',
+          'photoUrl',
+          'createdAt',
+          'updatedAt'
+        ])
+        && request.resource.data.uid == userId
+        && request.resource.data.name is string
+        && request.resource.data.name.size() <= 120;
+    }
+
     match /users/{userId} {
-      allow create, read, update, delete:
-        if signedIn() && request.auth.uid == userId;
+      allow create: if validProfileCreate(userId);
+      allow read: if isOwner(userId) || isAdmin();
+      allow update: if isOwner(userId)
+        && request.resource.data.uid == userId
+        && (!resource.data.keys().hasAny(['uid'])
+          || request.resource.data.uid == resource.data.uid)
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['uid', 'name', 'email', 'phoneNumber', 'photoUrl', 'updatedAt']);
+      allow delete: if isOwner(userId);
+
+      // Private user data belongs below the authenticated profile.
+      match /{document=**} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
-    // These six documents can be created only when missing. Client apps can
-    // neither update nor delete them, so existing Mom & Child Care data stays
-    // protected even if the seeder runs again.
-    match /mom_child_care/{documentId} {
-      allow read: if signedIn();
-      allow create: if signedIn()
-        && documentId in [
-          'problems',
-          'parenting_guide',
-          'smart_tools',
-          'age_based_care',
-          'learning_development',
-          'instant_care'
-        ];
-      allow update, delete: if false;
+    // Create this marker only from the Firebase console or Admin SDK. Users
+    // can inspect their own marker but can never grant themselves admin access.
+    match /app_admins/{userId} {
+      allow read: if isOwner(userId);
+      allow write: if false;
     }
 
+    // Published educational content is available to signed-in users and guests.
+    // Only an enabled admin can create/update it, and clients cannot delete it.
     match /prayer_reminder/{document=**} {
-      allow read, write: if signedIn();
+      allow read: if true;
+      allow create, update: if isAdmin();
+      allow delete: if false;
     }
 
     match /health_tips/{document=**} {
-      allow read, write: if signedIn();
+      allow read: if true;
+      allow create, update: if isAdmin();
+      allow delete: if false;
     }
 
-    match /easy_home/{document=**} {
-      allow read, write: if signedIn();
+    match /mom_child_care/{document=**} {
+      allow read: if true;
+      allow create, update: if isAdmin();
+      allow delete: if false;
     }
 
     match /ruqyah/{document=**} {
-      allow read, write: if signedIn();
+      allow read: if true;
+      allow create, update: if isAdmin();
+      allow delete: if false;
     }
 
+    // This top-level collection stores public configuration only. Personal
+    // shopping data belongs in users/{uid}/bazzer_reminder/... .
     match /bazzer_reminder/{document=**} {
-      allow read, write: if signedIn();
+      allow read: if true;
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // EasyHome still has shared prototype documents. Keep them private and
+    // read-only for regular accounts until moved below users/{uid}/easy_home.
+    match /easy_home/{document=**} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin();
+      allow delete: if false;
     }
 
     match /{document=**} {

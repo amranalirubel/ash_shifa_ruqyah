@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
+
 import '../services/voice_service.dart';
 import '../utils/voice_parser.dart';
 import '../widgets/bazzer_item_tile.dart';
@@ -51,9 +52,9 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
         },
         onListeningChanged: (listening) =>
             setState(() => _isListening = listening),
-        onError: (msg) => ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(msg))),
+        onError: (msg) =>
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text(msg))),
       );
     }
   }
@@ -78,9 +79,8 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
     _nameCtrl.clear();
     _qtyCtrl.clear();
     setState(() {});
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('✅ আইটেম যোগ হয়েছে')));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('✅ আইটেম যোগ হয়েছে')));
   }
 
   @override

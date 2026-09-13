@@ -1,5 +1,6 @@
 // lib/features/ruqyah/screens/problem_swiper_screen.dart
 import 'package:flutter/material.dart';
+
 import '../../../data/models/problem_model.dart';
 
 class ProblemSwiperScreen extends StatefulWidget {
@@ -23,7 +24,9 @@ class _ProblemSwiperScreenState extends State<ProblemSwiperScreen> {
   @override
   void initState() {
     super.initState();
-    currentIndex = widget.initialIndex;
+    currentIndex = widget.problems.isEmpty
+        ? 0
+        : widget.initialIndex.clamp(0, widget.problems.length - 1).toInt();
     _controller = PageController(initialPage: currentIndex);
   }
 
@@ -35,6 +38,21 @@ class _ProblemSwiperScreenState extends State<ProblemSwiperScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.problems.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('সমস্যা ও করণীয়')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'এই কনটেন্টটি এখনো পাওয়া যায়নি। কিছুক্ষণ পরে আবার চেষ্টা করুন।',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       body: Stack(
         children: [

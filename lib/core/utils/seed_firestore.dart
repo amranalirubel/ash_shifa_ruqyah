@@ -9,15 +9,6 @@ import 'package:flutter/foundation.dart';
 Future<void> seedFirestoreData() async {
   final firestore = FirebaseFirestore.instance;
 
-  await _setDocument(firestore.collection('users'), 'demo_admin', {
-    'uid': 'demo_admin',
-    'name': 'Ash Shifa Admin',
-    'email': 'admin@ashshifaruqyah.com',
-    'role': 'admin',
-    'status': 'active',
-    'createdAt': FieldValue.serverTimestamp(),
-  });
-
   await _setDocument(
     firestore.collection('prayer_reminder'),
     'default_schedule',
@@ -78,83 +69,6 @@ Future<void> seedFirestoreData() async {
       {
         'title': 'হালাল খাওয়া',
         'description': 'স্বাস্থ্যকর ও হালাল খাবার বেছে নিন।',
-      },
-    ],
-    'createdAt': FieldValue.serverTimestamp(),
-  });
-
-  await _setDocument(firestore.collection('mom_child_care'), 'problems', {
-    'title': 'মা ও শিশু পরিচর্যা',
-    'intro':
-        'মা ও শিশুদের স্বাস্থ্য ও মানসিক স্বস্তির জন্য প্রয়োজনীয় সঠিক তথ্য।',
-    'list': [
-      {
-        'title': 'গর্ভাবস্থায় খাদ্য',
-        'items': [
-          {
-            'title': 'সুষম খাদ্য',
-            'description':
-                'ফাইবার, প্রোটিন, ভিটামিন ও পানি সমৃদ্ধ খাবার খাওয়ার দিকে নজর দিন।',
-          },
-        ],
-      },
-      {
-        'title': 'শিশুর বিকাশ',
-        'items': [
-          {
-            'title': 'নিয়মিত পর্যবেক্ষণ',
-            'description': 'শিশুর বৃদ্ধি, ঘুম ও আচরণ নিয়মিত পর্যবেক্ষণ করুন।',
-          },
-        ],
-      },
-    ],
-    'createdAt': FieldValue.serverTimestamp(),
-  });
-
-  await _setDocument(
-    firestore.collection('mom_child_care'),
-    'parenting_guide',
-    {
-      'title': 'প্যারেন্টিং গাইড',
-      'intro': 'শিশুর সঠিক বিকাশ, স্নেহ, ধৈর্য ও সহযোগিতার উপর জোর দিন।',
-      'sections': [
-        {
-          'title': 'শিশুর সাথে যোগাযোগ',
-          'description': 'শিশুর অনুভূতির প্রতি মনোযোগ দিন।',
-          'topics': [
-            {
-              'title': 'আবেগকে বুঝুন',
-              'description': 'শিশুর আবেগকে উপেক্ষা না করে বুঝে নিন।',
-            },
-          ],
-        },
-      ],
-      'footerSections': [],
-      'createdAt': FieldValue.serverTimestamp(),
-    },
-  );
-
-  await _setDocument(firestore.collection('mom_child_care'), 'daily_tips', {
-    'tips': [
-      'বাচ্চাকে সামঞ্জস্যপূর্ণ রুটিন দিন।',
-      'প্রতিদিন অল্প অল্প সময় শিশুর সাথে কথা বলুন।',
-    ],
-    'createdAt': FieldValue.serverTimestamp(),
-  });
-
-  await _setDocument(firestore.collection('mom_child_care'), 'milestones', {
-    'list': [
-      {'title': '০–৬ মাস', 'description': 'শিশুর বিকাশের প্রথম পর্যায়।'},
-      {'title': '৬–১২ মাস', 'description': 'বিবর্তন ও শিখন গতি বৃদ্ধি পায়।'},
-    ],
-    'createdAt': FieldValue.serverTimestamp(),
-  });
-
-  await _setDocument(firestore.collection('mom_child_care'), 'features', {
-    'list': [
-      {
-        'title': 'শিশু স্বাস্থ্য',
-        'description': 'নিয়মিত স্বাস্থ্য পরীক্ষা ও টিকা সম্পর্কিত তথ্য।',
       },
     ],
     'createdAt': FieldValue.serverTimestamp(),
@@ -348,8 +262,8 @@ Future<void> seedFirestoreData() async {
     firestore.collection('bazzer_reminder'),
     'default_schedule',
     {
-      'title': 'Bazzer Reminder',
-      'description': 'Default bazzer reminder configuration.',
+      'title': 'Bazar Reminder',
+      'description': 'Default Bazar Reminder configuration.',
       'items': [
         {'name': 'Daily Check-in', 'time': '09:00', 'enabled': true},
         {'name': 'Evening Review', 'time': '20:00', 'enabled': true},
@@ -368,21 +282,18 @@ Future<void> seedBasicsOfRuqyah() async {
   final List<Map<String, dynamic>> data = [
     {
       'title': 'রুকইয়াহ কী?',
-      'description':
-          'রুকইয়াহ শুধুমাত্র কিছু আয়াত বা দোয়া পড়ার নাম নয়; এটি একজন মুমিনের আল্লাহর প্রতি পূর্ণ নির্ভরতা, আত্মশুদ্ধি ও আধ্যাত্মিক চিকিৎসার একটি গুরুত্বপূর্ণ মাধ্যম।',
+      'description': 'রুকইয়াহ শুধুমাত্র কিছু আয়াত বা দোয়া পড়ার নাম নয়; এটি একজন মুমিনের আল্লাহর প্রতি পূর্ণ নির্ভরতা, আত্মশুদ্ধি ও আধ্যাত্মিক চিকিৎসার একটি গুরুত্বপূর্ণ মাধ্যম।',
     },
     {
       'title': 'রুকইয়াহের মৌলিক বিষয়',
       'items': [
         {
           'title': 'আল্লাহই একমাত্র আরোগ্যদাতা',
-          'description':
-              'রুকইয়াহর প্রথম ও সবচেয়ে গুরুত্বপূর্ণ ভিত্তি হলো এই বিশ্বাস যে প্রকৃত শিফা একমাত্র আল্লাহর পক্ষ থেকেই আসে।',
+          'description': 'রুকইয়াহর প্রথম ও সবচেয়ে গুরুত্বপূর্ণ ভিত্তি হলো এই বিশ্বাস যে প্রকৃত শিফা একমাত্র আল্লাহর পক্ষ থেকেই আসে।',
         },
         {
           'title': 'তাওহীদ ও আল্লাহর উপর ভরসা',
-          'description':
-              'রুকইয়াহর সফলতার অন্যতম শর্ত হলো বিশুদ্ধ তাওহীদ এবং আল্লাহর উপর পূর্ণ ভরসা।',
+          'description': 'রুকইয়াহর সফলতার অন্যতম শর্ত হলো বিশুদ্ধ তাওহীদ এবং আল্লাহর উপর পূর্ণ ভরসা।',
         },
       ],
     },
@@ -391,8 +302,7 @@ Future<void> seedBasicsOfRuqyah() async {
       'items': [
         {
           'title': 'পাপ থেকে বিরত থাকা',
-          'description':
-              'পাপ মানুষের হৃদয়কে দুর্বল করে এবং আধ্যাত্মিক ক্ষতির কারণ হতে পারে।',
+          'description': 'পাপ মানুষের হৃদয়কে দুর্বল করে এবং আধ্যাত্মিক ক্ষতির কারণ হতে পারে।',
         },
         {
           'title': 'আন্তরিক তওবা',
@@ -405,8 +315,7 @@ Future<void> seedBasicsOfRuqyah() async {
       'items': [
         {
           'title': 'নিয়মিত সালাত ও যিকির',
-          'description':
-              'পাঁচ ওয়াক্ত সালাত, কুরআন তিলাওয়াত ও যিকির একজন মুমিনের আত্মাকে শক্তিশালী করে।',
+          'description': 'পাঁচ ওয়াক্ত সালাত, কুরআন তিলাওয়াত ও যিকির একজন মুমিনের আত্মাকে শক্তিশালী করে।',
         },
         {
           'title': 'কুরআন হলো শিফা',

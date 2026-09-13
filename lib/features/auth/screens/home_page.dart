@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:ash_shifa_ruqyah/core/app_colors.dart';
 
@@ -38,8 +39,20 @@ class HomePage extends StatelessWidget {
           actions: [
             IconButton(
               icon: Icon(isDarkMode ? Icons.light_mode : Icons.dark_mode),
+              tooltip: isDarkMode ? 'Light mode' : 'Dark mode',
               onPressed: toggleTheme,
             ),
+            if (FirebaseAuth.instance.currentUser != null)
+              IconButton(
+                icon: const Icon(Icons.logout_rounded),
+                tooltip: 'Logout',
+                onPressed: () async {
+                  await FirebaseAuth.instance.signOut();
+                  if (context.mounted) {
+                    Navigator.of(context).popUntil((route) => route.isFirst);
+                  }
+                },
+              ),
           ],
         ),
         body: Stack(
@@ -92,7 +105,7 @@ class HomePage extends StatelessWidget {
                     const SizedBox(height: 22),
                     _buildCard(
                       context,
-                      "Bazzer Reminder",
+                      "Bazar Reminder",
                       Icons.shopping_cart,
                       onTap: () =>
                           _navigateTo(context, const BazzerReminderPage()),

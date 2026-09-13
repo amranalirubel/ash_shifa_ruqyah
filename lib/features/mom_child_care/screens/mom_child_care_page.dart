@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -390,7 +389,14 @@ class _Module {
 // 1 + 2. সমস্যা সমাধান / প্যারেন্টিং গাইড — FULL FIREBASE VERSION
 // ================================================================
 
-enum _ContentType { problems, parenting }
+enum _ContentType {
+  problems('problems'),
+  parenting('parenting_guide');
+
+  const _ContentType(this.documentId);
+
+  final String documentId;
+}
 
 class _FirebaseContentPage extends StatefulWidget {
   final String title;
@@ -406,7 +412,8 @@ class _FirebaseContentPageState extends State<_FirebaseContentPage> {
   final _repo = MomChildCareRepository();
   final _search = TextEditingController();
 
-  bool _loading = true;
+  bool _loading = false;
+  bool _usingCloudData = false;
   String? _error;
   String _query = '';
   Map<String, dynamic> _document = const {};
@@ -414,7 +421,8 @@ class _FirebaseContentPageState extends State<_FirebaseContentPage> {
   @override
   void initState() {
     super.initState();
-    _load();
+    _document = _repo.getBundledDocument(widget.type.documentId);
+    unawaited(_load(showLoading: _document.isEmpty));
   }
 
   @override
@@ -423,8 +431,8 @@ class _FirebaseContentPageState extends State<_FirebaseContentPage> {
     super.dispose();
   }
 
-  Future<void> _load() async {
-    if (mounted) {
+  Future<void> _load({bool showLoading = true}) async {
+    if (mounted && showLoading) {
       setState(() {
         _loading = true;
         _error = null;
@@ -438,18 +446,24 @@ class _FirebaseContentPageState extends State<_FirebaseContentPage> {
 
       if (!mounted) return;
 
-      _document = data;
-
-      if (_document.isEmpty) {
+      if (data.isNotEmpty) {
+        _document = data;
+        _usingCloudData = true;
+        _error = null;
+      } else if (_document.isEmpty) {
         _error =
             'Firebase-এ এই বিভাগের পূর্ণ কনটেন্ট পাওয়া যায়নি। '
-            'Firestore path পরীক্ষা করুন: mom_child_care/${widget.type == _ContentType.problems ? 'problems' : 'parenting_guide'}';
+            'Firestore path পরীক্ষা করুন: '
+            'mom_child_care/${widget.type.documentId}';
       }
     } catch (e) {
       if (!mounted) return;
-      _error =
-          'Firebase থেকে কনটেন্ট লোড করা যায়নি। '
-          'Firestore rules, project এবং internet connection পরীক্ষা করুন।';
+      _usingCloudData = false;
+      if (_document.isEmpty) {
+        _error =
+            'কনটেন্ট লোড করা যায়নি। Firestore rules, project এবং internet '
+            'connection পরীক্ষা করুন।';
+      }
     } finally {
       if (mounted) {
         setState(() => _loading = false);
@@ -539,7 +553,7 @@ class _FirebaseContentPageState extends State<_FirebaseContentPage> {
         centerTitle: true,
       ),
       body: RefreshIndicator(
-        onRefresh: _load,
+        onRefresh: () => _load(showLoading: false),
         child: ListView(
           padding: const EdgeInsets.fromLTRB(18, 18, 18, 30),
           physics: const AlwaysScrollableScrollPhysics(
@@ -649,7 +663,8 @@ class _FirebaseContentPageState extends State<_FirebaseContentPage> {
         const SizedBox(width: 7),
         Expanded(
           child: Text(
-            'Firebase থেকে $_topicCountটি বিষয় • $categoryCountটি বিভাগ',
+            '${_usingCloudData ? 'Cloud' : 'Offline'} content • '
+            '$_topicCountটি বিষয় • $categoryCountটি বিভাগ',
             style: const TextStyle(color: Color(0x73FFFFFF), fontSize: 12.5),
           ),
         ),
@@ -965,6 +980,7 @@ class _VaccinationPage extends StatefulWidget {
 class _VaccinationPageState extends State<_VaccinationPage> {
   static const _doneKey = 'mom_child_completed_vaccines';
 
+  final _repo = MomChildCareRepository();
   bool _loading = true;
   List<Map<String, dynamic>> _schedule = [];
   Set<String> _done = {};
@@ -980,13 +996,7 @@ class _VaccinationPageState extends State<_VaccinationPage> {
     _done = (prefs.getStringList(_doneKey) ?? const []).toSet();
 
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('mom_child_care')
-          .doc('vaccination_schedule')
-          .get();
-      _schedule = List<Map<String, dynamic>>.from(
-        snap.data()?['list'] ?? const [],
-      );
+      _schedule = await _repo.getVaccinationSchedule();
     } catch (_) {
       _schedule = [];
     }
@@ -1021,8 +1031,8 @@ class _VaccinationPageState extends State<_VaccinationPage> {
                 const SizedBox(height: 16),
                 if (_schedule.isEmpty)
                   const _EmptyBox(
-                    'Firebase → mom_child_care/vaccination_schedule '
-                    'ডকুমেন্টে list যোগ করুন।\n\n'
+                    'Firebase → mom_child_care/smart_tools ডকুমেন্টের '
+                    'vaccinationSchedule তালিকায় যাচাইকৃত, দেশভিত্তিক তথ্য যোগ করুন।\n\n'
                     'প্রতি আইটেম: id, title, age, dose, description',
                   )
                 else
@@ -1288,8 +1298,8 @@ class _MilestonePageState extends State<_MilestonePage> {
           ? const Padding(
               padding: EdgeInsets.all(22),
               child: _EmptyBox(
-                'Firebase → mom_child_care/milestones ডকুমেন্টে '
-                'বয়সভিত্তিক list যোগ করুন।',
+                'Firebase → mom_child_care/smart_tools ডকুমেন্টের '
+                'milestones তালিকায় বয়সভিত্তিক তথ্য যোগ করুন।',
               ),
             )
           : ListView(
@@ -1970,13 +1980,13 @@ class _AgeBasedCarePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _StaticListPage(
+    return _CloudBackedStaticListPage(
+      documentId: 'age_based_care',
       title: 'বয়সভিত্তিক যত্ন',
-      intro:
-          'শিশুর বয়স অনুযায়ী বৃদ্ধি, মানসিক বিকাশ, খাবার, ঘুম, খেলা, শেখা ও সতর্কতা দেখুন।',
+      intro: 'শিশুর বয়স অনুযায়ী বৃদ্ধি, মানসিক বিকাশ, খাবার, ঘুম, খেলা, শেখা ও সতর্কতা দেখুন।',
       icon: Icons.child_care_rounded,
       color: const Color(0xFFF472B6),
-      data: data,
+      fallbackData: data,
     );
   }
 }
@@ -2085,13 +2095,13 @@ class _LearningDevelopmentPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _StaticListPage(
+    return _CloudBackedStaticListPage(
+      documentId: 'learning_development',
       title: 'শেখা ও বিকাশ',
-      intro:
-          'শেখা শুধু বই নয়—ভাষা, মনোযোগ, অভ্যাস, সৃজনশীলতা, খেলা ও নৈতিক বিকাশও গুরুত্বপূর্ণ।',
+      intro: 'শেখা শুধু বই নয়—ভাষা, মনোযোগ, অভ্যাস, সৃজনশীলতা, খেলা ও নৈতিক বিকাশও গুরুত্বপূর্ণ।',
       icon: Icons.psychology_alt_rounded,
       color: const Color(0xFFA78BFA),
-      data: data,
+      fallbackData: data,
     );
   }
 }
@@ -2212,13 +2222,13 @@ class _InstantCarePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _StaticListPage(
+    return _CloudBackedStaticListPage(
+      documentId: 'instant_care',
       title: 'তাৎক্ষণিক চিকিৎসা',
-      intro:
-          'প্রাথমিক করণীয় বোঝার জন্য। এটি রোগ নির্ণয় বা জরুরি চিকিৎসার বিকল্প নয়। শিশুর অবস্থা গুরুতর মনে হলে দ্রুত চিকিৎসা নিন।',
+      intro: 'প্রাথমিক করণীয় বোঝার জন্য। এটি রোগ নির্ণয় বা জরুরি চিকিৎসার বিকল্প নয়। শিশুর অবস্থা গুরুতর মনে হলে দ্রুত চিকিৎসা নিন।',
       icon: Icons.emergency_rounded,
       color: const Color(0xFFFB7185),
-      data: data,
+      fallbackData: data,
       warning: true,
     );
   }
@@ -2228,12 +2238,93 @@ class _InstantCarePage extends StatelessWidget {
 // Reusable UI
 // ================================================================
 
+class _CloudBackedStaticListPage extends StatefulWidget {
+  const _CloudBackedStaticListPage({
+    required this.documentId,
+    required this.title,
+    required this.intro,
+    required this.icon,
+    required this.color,
+    required this.fallbackData,
+    this.warning = false,
+  });
+
+  final String documentId;
+  final String title;
+  final String intro;
+  final IconData icon;
+  final Color color;
+  final List<Map<String, dynamic>> fallbackData;
+  final bool warning;
+
+  @override
+  State<_CloudBackedStaticListPage> createState() =>
+      _CloudBackedStaticListPageState();
+}
+
+class _CloudBackedStaticListPageState
+    extends State<_CloudBackedStaticListPage> {
+  final _repository = MomChildCareRepository();
+
+  late List<Map<String, dynamic>> _data;
+  late String _intro;
+  bool _usingCloudData = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _data = widget.fallbackData;
+    _intro = widget.intro;
+    unawaited(_refresh());
+  }
+
+  Future<void> _refresh() async {
+    try {
+      final document = await _repository.getContentDocument(widget.documentId);
+      final rawSections = document['sections'] as List<dynamic>? ?? const [];
+      final sections = rawSections
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList(growable: false);
+
+      if (!mounted || sections.isEmpty) return;
+
+      setState(() {
+        _data = sections;
+        _intro = document['intro']?.toString().trim().isNotEmpty == true
+            ? document['intro'].toString()
+            : widget.intro;
+        _usingCloudData = true;
+      });
+    } catch (error) {
+      // The bundled content remains visible offline or when rules/network are
+      // temporarily unavailable. Pulling cloud content is an enhancement, not
+      // a blocking dependency for these informational screens.
+      debugPrint('${widget.documentId} cloud refresh skipped: $error');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _StaticListPage(
+      title: widget.title,
+      intro: _intro,
+      icon: widget.icon,
+      color: widget.color,
+      data: _data,
+      sourceLabel: _usingCloudData ? 'Cloud content' : 'Offline content',
+      warning: widget.warning,
+    );
+  }
+}
+
 class _StaticListPage extends StatelessWidget {
   final String title;
   final String intro;
   final IconData icon;
   final Color color;
   final List<Map<String, dynamic>> data;
+  final String? sourceLabel;
   final bool warning;
 
   const _StaticListPage({
@@ -2242,6 +2333,7 @@ class _StaticListPage extends StatelessWidget {
     required this.icon,
     required this.color,
     required this.data,
+    this.sourceLabel,
     this.warning = false,
   });
 
@@ -2300,6 +2392,17 @@ class _StaticListPage extends StatelessWidget {
               style: const TextStyle(color: Colors.white70, height: 1.5),
             ),
           ),
+          if (sourceLabel != null) ...[
+            const SizedBox(height: 9),
+            Text(
+              sourceLabel!,
+              style: TextStyle(
+                color: color.withValues(alpha: 0.78),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
           const SizedBox(height: 18),
           ...data.map(
             (item) => Card(

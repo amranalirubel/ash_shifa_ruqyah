@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../models/bazzer_item_model.dart';
 
 class BazzerItemTile extends StatelessWidget {
