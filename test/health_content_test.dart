@@ -45,18 +45,21 @@ void main() {
 
     expect(categories, containsAll(HealthGuideCategory.values));
     expect(
-      HealthContentCatalog.movementGuides
-          .where((guide) => guide.category == HealthGuideCategory.kneeCare),
+      HealthContentCatalog.movementGuides.where(
+        (guide) => guide.category == HealthGuideCategory.kneeCare,
+      ),
       isNotEmpty,
     );
     expect(
-      HealthContentCatalog.movementGuides
-          .where((guide) => guide.category == HealthGuideCategory.backCare),
+      HealthContentCatalog.movementGuides.where(
+        (guide) => guide.category == HealthGuideCategory.backCare,
+      ),
       isNotEmpty,
     );
     expect(
-      HealthContentCatalog.movementGuides
-          .where((guide) => guide.category == HealthGuideCategory.handCare),
+      HealthContentCatalog.movementGuides.where(
+        (guide) => guide.category == HealthGuideCategory.handCare,
+      ),
       isNotEmpty,
     );
     expect(

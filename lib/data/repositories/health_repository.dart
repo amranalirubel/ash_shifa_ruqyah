@@ -12,8 +12,7 @@ class HealthRepository {
 
   List<DailyHealthTip> get dailyTips => HealthContentCatalog.dailyTips;
 
-  List<MovementGuide> get movementGuides =>
-      HealthContentCatalog.movementGuides;
+  List<MovementGuide> get movementGuides => HealthContentCatalog.movementGuides;
 
   List<DietGuide> get dietGuides => HealthContentCatalog.dietGuides;
 

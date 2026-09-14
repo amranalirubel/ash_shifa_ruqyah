@@ -34,9 +34,9 @@ class _DiseaseSelectionPageState extends State<DiseaseSelectionPage> {
   }
 
   void _open(DietGuide guide) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => DietDetailScreen(guide: guide)),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => DietDetailScreen(guide: guide)));
   }
 
   @override
@@ -45,10 +45,7 @@ class _DiseaseSelectionPageState extends State<DiseaseSelectionPage> {
     final guides = _filteredGuides;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('খাদ্য ও জীবনযাপন'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('খাদ্য ও জীবনযাপন'), centerTitle: true),
       body: CustomScrollView(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         physics: const BouncingScrollPhysics(),

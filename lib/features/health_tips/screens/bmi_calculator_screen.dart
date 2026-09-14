@@ -89,14 +89,18 @@ class BmiCalculatorScreen extends StatefulWidget {
 
 class _BmiCalculatorScreenState extends State<BmiCalculatorScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final TextEditingController _ageController =
-      TextEditingController(text: '25');
-  final TextEditingController _feetController =
-      TextEditingController(text: '5');
-  final TextEditingController _inchController =
-      TextEditingController(text: '6');
-  final TextEditingController _weightController =
-      TextEditingController(text: '65');
+  final TextEditingController _ageController = TextEditingController(
+    text: '25',
+  );
+  final TextEditingController _feetController = TextEditingController(
+    text: '5',
+  );
+  final TextEditingController _inchController = TextEditingController(
+    text: '6',
+  );
+  final TextEditingController _weightController = TextEditingController(
+    text: '65',
+  );
 
   AdultBmiResult? _result;
 
@@ -188,9 +192,7 @@ class _BmiCalculatorScreenState extends State<BmiCalculatorScreen> {
             decoration: BoxDecoration(
               color: colors.surface,
               borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: colors.outline.withValues(alpha: 0.55),
-              ),
+              border: Border.all(color: colors.outline.withValues(alpha: 0.55)),
             ),
             child: Form(
               key: _formKey,
@@ -286,9 +288,7 @@ class _BmiCalculatorScreenState extends State<BmiCalculatorScreen> {
           const SizedBox(height: 14),
           const _BmiRangeCard(),
           const SizedBox(height: 12),
-          const Center(
-            child: HealthEvidenceButton(sourceIds: ['cdc_bmi']),
-          ),
+          const Center(child: HealthEvidenceButton(sourceIds: ['cdc_bmi'])),
           const SizedBox(height: 8),
           Text(
             'শরীর নিয়ে নেতিবাচক ধারণা তৈরি নয়—BMI-কে অন্য health information-এর সঙ্গে বিবেচনা করুন।',
@@ -327,9 +327,7 @@ class _NumberField extends StatelessWidget {
       validator: validator,
       autovalidateMode: AutovalidateMode.onUserInteraction,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      inputFormatters: [
-        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-      ],
+      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon),
@@ -360,10 +358,7 @@ class _BmiResultCard extends StatelessWidget {
         padding: const EdgeInsets.all(19),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              accent.withValues(alpha: 0.18),
-              colors.surface,
-            ],
+            colors: [accent.withValues(alpha: 0.18), colors.surface],
           ),
           borderRadius: BorderRadius.circular(23),
           border: Border.all(color: accent.withValues(alpha: 0.38)),

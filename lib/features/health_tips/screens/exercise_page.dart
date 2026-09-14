@@ -38,9 +38,9 @@ class _ExercisePageState extends State<ExercisePage> {
   }
 
   void _openGuide(MovementGuide guide) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => MovementGuidePage(guide: guide)),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => MovementGuidePage(guide: guide)));
   }
 
   @override
@@ -195,10 +195,7 @@ class MovementGuidePage extends StatelessWidget {
     final accent = _categoryAccent(context, guide.category);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(guide.category.label),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: Text(guide.category.label), centerTitle: true),
       body: ListView(
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(17, 8, 17, 30),
@@ -295,11 +292,8 @@ class MovementGuidePage extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           ...guide.steps.indexed.map(
-            (entry) => _StepCard(
-              number: entry.$1 + 1,
-              text: entry.$2,
-              accent: accent,
-            ),
+            (entry) =>
+                _StepCard(number: entry.$1 + 1, text: entry.$2, accent: accent),
           ),
           const SizedBox(height: 8),
           _InformationCard(
@@ -333,10 +327,7 @@ class MovementGuidePage extends StatelessWidget {
                 ' • Editorial check ' +
                 HealthContentCatalog.editorialReviewDate,
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: colors.onSurfaceVariant,
-              fontSize: 10.5,
-            ),
+            style: TextStyle(color: colors.onSurfaceVariant, fontSize: 10.5),
           ),
         ],
       ),
@@ -652,9 +643,9 @@ class _SectionTitle extends StatelessWidget {
         const SizedBox(width: 8),
         Text(
           title,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w900,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
         ),
       ],
     );

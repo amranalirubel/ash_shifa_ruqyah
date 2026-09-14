@@ -4,11 +4,7 @@ import 'package:ash_shifa_ruqyah/features/health_tips/screens/bmi_calculator_scr
 
 void main() {
   test('calculates a healthy-range adult BMI', () {
-    final result = calculateAdultBmi(
-      age: 30,
-      heightMeters: 1.75,
-      weightKg: 70,
-    );
+    final result = calculateAdultBmi(age: 30, heightMeters: 1.75, weightKg: 70);
 
     expect(result.score, closeTo(22.86, 0.01));
     expect(result.category, AdultBmiCategory.healthyWeight);
@@ -26,30 +22,18 @@ void main() {
 
   test('rejects child or teen use of the adult calculator', () {
     expect(
-      () => calculateAdultBmi(
-        age: 19,
-        heightMeters: 1.7,
-        weightKg: 65,
-      ),
+      () => calculateAdultBmi(age: 19, heightMeters: 1.7, weightKg: 65),
       throwsArgumentError,
     );
   });
 
   test('rejects non-physical input ranges', () {
     expect(
-      () => calculateAdultBmi(
-        age: 30,
-        heightMeters: 0,
-        weightKg: 65,
-      ),
+      () => calculateAdultBmi(age: 30, heightMeters: 0, weightKg: 65),
       throwsArgumentError,
     );
     expect(
-      () => calculateAdultBmi(
-        age: 30,
-        heightMeters: 1.7,
-        weightKg: double.nan,
-      ),
+      () => calculateAdultBmi(age: 30, heightMeters: 1.7, weightKg: double.nan),
       throwsArgumentError,
     );
   });

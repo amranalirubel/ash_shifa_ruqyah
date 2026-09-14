@@ -25,12 +25,7 @@ class _DailyTipsPageState extends State<DailyTipsPage> {
     final now = DateTime.now();
     final month = now.month.toString().padLeft(2, '0');
     final day = now.day.toString().padLeft(2, '0');
-    return _preferencePrefix +
-        now.year.toString() +
-        '-' +
-        month +
-        '-' +
-        day;
+    return _preferencePrefix + now.year.toString() + '-' + month + '-' + day;
   }
 
   @override
@@ -64,10 +59,7 @@ class _DailyTipsPageState extends State<DailyTipsPage> {
     });
 
     final preferences = await SharedPreferences.getInstance();
-    await preferences.setStringList(
-      _todayKey,
-      _completedIds.toList()..sort(),
-    );
+    await preferences.setStringList(_todayKey, _completedIds.toList()..sort());
   }
 
   Future<void> _resetToday() async {

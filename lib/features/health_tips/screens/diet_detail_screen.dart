@@ -12,12 +12,8 @@ class DietDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final positive = isDark
-        ? const Color(0xFF4ADE80)
-        : const Color(0xFF087A57);
-    final caution = isDark
-        ? const Color(0xFFFBBF24)
-        : const Color(0xFF8A5A00);
+    final positive = isDark ? const Color(0xFF4ADE80) : const Color(0xFF087A57);
+    final caution = isDark ? const Color(0xFFFBBF24) : const Color(0xFF8A5A00);
 
     return Scaffold(
       appBar: AppBar(title: Text(guide.title), centerTitle: true),

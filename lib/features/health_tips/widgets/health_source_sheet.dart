@@ -48,9 +48,8 @@ Future<void> showHealthSources(
                 children: [
                   Text(
                     'তথ্যের উৎস',
-                    style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: Theme.of(sheetContext).textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 5),
                   Text(
@@ -182,9 +181,9 @@ class _SourceCard extends StatelessWidget {
   Future<void> _copy(BuildContext context) async {
     await Clipboard.setData(ClipboardData(text: source.url));
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Source link কপি হয়েছে।')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Source link কপি হয়েছে।')));
   }
 
   @override
@@ -256,11 +255,7 @@ class _SourceCard extends StatelessWidget {
           const SizedBox(height: 8),
           Row(
             children: [
-              Icon(
-                Icons.verified_outlined,
-                size: 15,
-                color: colors.primary,
-              ),
+              Icon(Icons.verified_outlined, size: 15, color: colors.primary),
               const SizedBox(width: 5),
               Expanded(
                 child: Text(

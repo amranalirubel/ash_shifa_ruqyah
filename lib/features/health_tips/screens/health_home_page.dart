@@ -21,7 +21,9 @@ class _HealthHomePageState extends State<HealthHomePage>
     with WidgetsBindingObserver {
   static const HealthRepository _repository = HealthRepository();
 
-  final PageController _bannerController = PageController(viewportFraction: 0.94);
+  final PageController _bannerController = PageController(
+    viewportFraction: 0.94,
+  );
   Timer? _bannerTimer;
   int _bannerIndex = 0;
   bool _isForeground = true;
@@ -113,10 +115,8 @@ class _HealthHomePageState extends State<HealthHomePage>
         centerTitle: true,
         actions: [
           IconButton(
-            onPressed: () => showHealthSources(
-              context,
-              HealthContentCatalog.sources.keys,
-            ),
+            onPressed: () =>
+                showHealthSources(context, HealthContentCatalog.sources.keys),
             tooltip: 'সকল উৎস',
             icon: const Icon(Icons.fact_check_outlined),
           ),
@@ -217,10 +217,7 @@ class _HealthBannerCarousel extends StatelessWidget {
             itemBuilder: (context, index) {
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 5),
-                child: _HealthBannerCard(
-                  banner: banners[index],
-                  index: index,
-                ),
+                child: _HealthBannerCard(banner: banners[index], index: index),
               );
             },
           ),

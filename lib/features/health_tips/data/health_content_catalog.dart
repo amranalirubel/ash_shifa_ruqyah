@@ -192,8 +192,7 @@ class HealthContentCatalog {
       id: 'nhs_back',
       organization: 'East of England Community Health and Care NHS Trust',
       title: 'Lower back pain: advice and exercises',
-      url:
-          'https://www.dynamichealth.nhs.uk/help-and-advice/lower-back-pain/',
+      url: 'https://www.dynamichealth.nhs.uk/help-and-advice/lower-back-pain/',
       reviewedOn: editorialReviewDate,
     ),
     'nhs_wrist': HealthSource(
@@ -324,8 +323,7 @@ class HealthContentCatalog {
     MovementGuide(
       id: 'comfortable_walk',
       title: 'স্বাচ্ছন্দ্যের হাঁটা',
-      summary:
-          'দৈনিক নড়াচড়া বাড়ানোর সহজ উপায়; গতি এমন রাখুন যাতে কথা বলা যায়।',
+      summary: 'দৈনিক নড়াচড়া বাড়ানোর সহজ উপায়; গতি এমন রাখুন যাতে কথা বলা যায়।',
       duration: '১০–২০ মিনিট',
       level: 'শুরুর স্তর',
       category: HealthGuideCategory.dailyMovement,
@@ -347,8 +345,7 @@ class HealthContentCatalog {
     MovementGuide(
       id: 'seated_knee_extension',
       title: 'বসে হাঁটু সোজা করা',
-      summary:
-          'উরুর সামনের পেশি সক্রিয় করার নিয়ন্ত্রিত beginner movement।',
+      summary: 'উরুর সামনের পেশি সক্রিয় করার নিয়ন্ত্রিত beginner movement।',
       duration: '৩–৫ মিনিট',
       level: 'হালকা',
       category: HealthGuideCategory.kneeCare,
@@ -370,8 +367,7 @@ class HealthContentCatalog {
     MovementGuide(
       id: 'supported_sit_to_stand',
       title: 'চেয়ার থেকে ওঠা-বসা',
-      summary:
-          'পা ও নিতম্বের দৈনন্দিন শক্তি তৈরির functional movement।',
+      summary: 'পা ও নিতম্বের দৈনন্দিন শক্তি তৈরির functional movement।',
       duration: '৩–৬ মিনিট',
       level: 'শুরুর স্তর',
       category: HealthGuideCategory.kneeCare,
@@ -438,8 +434,7 @@ class HealthContentCatalog {
     MovementGuide(
       id: 'wrist_side_to_side',
       title: 'কব্জি পাশে নড়ানো',
-      summary:
-          'কব্জির আরামদায়ক range ফিরিয়ে আনার gentle mobility exercise।',
+      summary: 'কব্জির আরামদায়ক range ফিরিয়ে আনার gentle mobility exercise।',
       duration: '২–৪ মিনিট',
       level: 'হালকা',
       category: HealthGuideCategory.handCare,
@@ -460,8 +455,7 @@ class HealthContentCatalog {
     MovementGuide(
       id: 'wrist_prayer_stretch',
       title: 'হাতের তালু মিলিয়ে কব্জি স্ট্রেচ',
-      summary:
-          'দুই তালু মিলিয়ে কব্জিকে অল্প range-এ নমনীয় করার অনুশীলন।',
+      summary: 'দুই তালু মিলিয়ে কব্জিকে অল্প range-এ নমনীয় করার অনুশীলন।',
       duration: '২–৩ মিনিট',
       level: 'হালকা',
       category: HealthGuideCategory.handCare,
@@ -494,7 +488,8 @@ class HealthContentCatalog {
         'নাক দিয়ে আরামদায়কভাবে শ্বাস নিন; জোর করবেন না।',
         'মুখ দিয়ে ধীরে শ্বাস ছাড়ুন; চাইলে ১ থেকে ৫ গুনুন।',
       ],
-      dosage: 'নিয়মিত ৫ মিনিট অনুশীলন করুন; app session যেকোনো সময় pause করা যাবে।',
+      dosage:
+          'নিয়মিত ৫ মিনিট অনুশীলন করুন; app session যেকোনো সময় pause করা যাবে।',
       stopAndSeekHelp: [
         'মাথা ঘোরা, শ্বাসকষ্ট বা আতঙ্ক বাড়লে থামুন এবং স্বাভাবিক শ্বাসে ফিরুন।',
         'এটি anxiety বা panic disorder-এর চিকিৎসার বিকল্প নয়।',
@@ -505,8 +500,7 @@ class HealthContentCatalog {
     MovementGuide(
       id: 'mindful_body_scan',
       title: 'সংক্ষিপ্ত Body Scan',
-      summary:
-          'শরীরের অনুভূতি বিচার না করে লক্ষ্য করার mindfulness practice।',
+      summary: 'শরীরের অনুভূতি বিচার না করে লক্ষ্য করার mindfulness practice।',
       duration: '৩–৫ মিনিট',
       level: 'শুরুর স্তর',
       category: HealthGuideCategory.mindfulness,
@@ -539,7 +533,8 @@ class HealthContentCatalog {
         'শ্বাস বদলানোর চেষ্টা না করে তার ছন্দ লক্ষ্য করুন।',
         'মন অন্যদিকে গেলে পথের নিরাপত্তা দেখে আবার পদক্ষেপে মন ফেরান।',
       ],
-      dosage: '৫ মিনিট দিয়ে শুরু করুন; রাস্তা পার হওয়া বা গাড়ির কাছে practice নয়।',
+      dosage:
+          '৫ মিনিট দিয়ে শুরু করুন; রাস্তা পার হওয়া বা গাড়ির কাছে practice নয়।',
       stopAndSeekHelp: [
         'মাথা ঘোরা, ভারসাম্য হারানো বা ব্যথা হলে থামুন।',
         'Mindfulness চিকিৎসার বিকল্প নয়; distress বাড়লে পেশাদার সহায়তা নিন।',
