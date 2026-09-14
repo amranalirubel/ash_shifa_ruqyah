@@ -17,6 +17,11 @@ on:
         required: true
         default: false
         type: boolean
+      delete_legacy_documents:
+        description: 'Back up and delete only legacy features and milestones documents'
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -74,6 +79,7 @@ jobs:
           CONFIRM_PROJECT: ${{ inputs.confirm_project }}
           DRY_RUN: ${{ inputs.dry_run }}
           FORCE_REFRESH: ${{ inputs.force_refresh }}
+          DELETE_LEGACY_DOCUMENTS: ${{ inputs.delete_legacy_documents }}
         run: >-
           node tool/firestore_seed/seed.mjs
           "$RUNNER_TEMP/mom-child-content.json"
