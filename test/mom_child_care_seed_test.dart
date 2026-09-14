@@ -1,13 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ash_shifa_ruqyah/features/mom_child_care/data/mom_child_content_validator.dart';
-import 'package:ash_shifa_ruqyah/utils/seed_mom_child_care.dart';
+import 'package:ash_shifa_ruqyah/utils/mom_child_content_catalog.dart';
 
 void main() {
   test(
     'Mom & Child Care seed contains the six canonical documents in order',
     () {
-      final documents = buildMomChildCareSeedDocuments();
+      final documents = buildMomChildCarePublishedDocuments();
 
       expect(documents.map((document) => document['id']), const [
         'problems',
@@ -37,6 +37,15 @@ void main() {
       expect(smartTools, contains('vaccinationSchedule'));
       expect(smartTools, contains('milestones'));
       expect(smartTools, contains('dailyTips'));
+      expect(smartTools['dailyTips'], isA<List<String>>());
+      expect(smartTools['dailyTips'], isNotEmpty);
+      final smartToolSections = (smartTools['sections']! as List)
+          .whereType<Map>()
+          .toList(growable: false);
+      expect(
+        smartToolSections.map((section) => section['id']),
+        momChildSmartToolIds,
+      );
     },
   );
 
@@ -75,6 +84,24 @@ void main() {
         'categoryCount': 1,
         'sections': 'this should have been a list',
       }),
+      isFalse,
+    );
+  });
+
+  test('Smart Tool sections require stable route IDs', () {
+    final documents = buildMomChildCarePublishedDocuments();
+    final smartTools = Map<String, dynamic>.from(
+      documents[2]['data']! as Map<String, dynamic>,
+    );
+    final sections = (smartTools['sections']! as List)
+        .whereType<Map>()
+        .map((section) => Map<String, dynamic>.from(section))
+        .toList(growable: false);
+    sections.first.remove('id');
+    smartTools['sections'] = sections;
+
+    expect(
+      MomChildContentValidator.isCanonicalDocument('smart_tools', smartTools),
       isFalse,
     );
   });

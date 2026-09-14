@@ -3,7 +3,7 @@ import 'dart:io';
 
 // This exporter intentionally runs without bootstrapping the Flutter package.
 // ignore: avoid_relative_lib_imports
-import '../../lib/utils/seed_mom_child_care.dart';
+import '../../lib/utils/mom_child_content_catalog.dart';
 
 void main(List<String> arguments) {
   if (arguments.length != 1) {
@@ -15,7 +15,7 @@ void main(List<String> arguments) {
     return;
   }
 
-  final documents = buildMomChildCareSeedDocuments();
+  final documents = buildMomChildCarePublishedDocuments();
   final output = File(arguments.single);
   output.parent.createSync(recursive: true);
   output.writeAsStringSync(

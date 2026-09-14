@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 import { applicationDefault, initializeApp } from 'firebase-admin/app';
@@ -11,6 +12,16 @@ const canonicalIds = [
   'age_based_care',
   'learning_development',
   'instant_care',
+];
+const legacySmartToolIds = ['daily_tips', 'features', 'milestones'];
+const legacyMigrationVersion = 1;
+const smartToolSectionIds = [
+  'vaccination_schedule',
+  'growth_tracking',
+  'development_milestones',
+  'nutrition_plan',
+  'medicine_reminder',
+  'health_record',
 ];
 
 const inputPath = process.argv[2];
@@ -53,6 +64,7 @@ for (const id of canonicalIds) {
     throw new Error(`Bundled document failed validation: ${id}.`);
   }
 }
+validateMigrationHelpers(documents.get('smart_tools'));
 
 if (validateOnly) {
   console.log('Validated all six canonical Mom & Child Care documents.');
@@ -109,10 +121,15 @@ for (const id of canonicalIds) {
       });
     }
 
+    const nextData =
+      id === 'smart_tools'
+        ? preserveSmartToolContent(canonicalData, snapshot.data())
+        : canonicalData;
+
     transaction.set(
       reference,
       {
-        ...canonicalData,
+        ...nextData,
         updatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true },
@@ -137,6 +154,13 @@ for (const id of canonicalIds) {
   }
 }
 
+const legacyResult = await consolidateLegacySmartTools({
+  firestore,
+  runId,
+  dryRun,
+  canonicalSmartTools: documents.get('smart_tools'),
+});
+
 if (dryRun) {
   console.log('Dry run complete. Firestore was not changed.');
 } else {
@@ -145,6 +169,221 @@ if (dryRun) {
       `${skipped} already current.`,
   );
   console.log('Existing repaired documents were backed up before replacement.');
+  console.log(
+    `Legacy consolidation: ${legacyResult.fieldsMigrated} field(s) migrated, ` +
+      `${legacyResult.documentsArchived} legacy document(s) preserved and marked deprecated.`,
+  );
+}
+
+async function consolidateLegacySmartTools({
+  firestore,
+  runId,
+  dryRun,
+  canonicalSmartTools,
+}) {
+  const smartToolsReference = firestore.collection('mom_child_care').doc('smart_tools');
+  const legacyReferences = legacySmartToolIds.map((id) =>
+    firestore.collection('mom_child_care').doc(id),
+  );
+
+  return firestore.runTransaction(async (transaction) => {
+    // Firestore transactions require every read to finish before any write.
+    const smartToolsSnapshot = await transaction.get(smartToolsReference);
+    const legacySnapshots = [];
+    for (const reference of legacyReferences) {
+      legacySnapshots.push(await transaction.get(reference));
+    }
+
+    const smartTools = smartToolsSnapshot.data() ?? {};
+    const legacyById = new Map(
+      legacySnapshots
+        .filter((snapshot) => snapshot.exists)
+        .map((snapshot) => [snapshot.id, snapshot.data() ?? {}]),
+    );
+    const updates = {};
+
+    const currentDailyTips = stringList(smartTools.dailyTips);
+    const legacyDailyTips = firstNonEmptyStringList(
+      legacyById.get('daily_tips')?.dailyTips,
+      legacyById.get('daily_tips')?.tips,
+      legacyById.get('daily_tips')?.list,
+    );
+    const bundledDailyTips = stringList(canonicalSmartTools.dailyTips);
+    if (
+      currentDailyTips.length === 0 ||
+      (legacyDailyTips.length > 0 &&
+        arraysEqual(currentDailyTips, bundledDailyTips))
+    ) {
+      const source =
+        legacyDailyTips.length > 0 ? legacyDailyTips : bundledDailyTips;
+      if (source.length > 0) updates.dailyTips = source;
+    }
+
+    const currentMilestones = mapList(smartTools.milestones);
+    const legacyMilestones = firstNonEmptyMapList(
+      legacyById.get('milestones')?.milestones,
+      legacyById.get('milestones')?.list,
+    );
+    if (currentMilestones.length === 0 && legacyMilestones.length > 0) {
+      updates.milestones = legacyMilestones;
+    }
+
+    const legacyToArchive = legacySnapshots.filter((snapshot) => {
+      if (!snapshot.exists) return false;
+      const migration = snapshot.data()?.migration;
+      return (
+        !migration ||
+        migration.version !== legacyMigrationVersion ||
+        migration.targetPath !== smartToolsReference.path
+      );
+    });
+
+    const fieldsMigrated = ['dailyTips', 'milestones'].filter(
+      (field) => updates[field] !== undefined,
+    ).length;
+
+    if (dryRun) {
+      if (updates.dailyTips) {
+        console.log(
+          `DRY-RUN MIGRATE ${updates.dailyTips.length} daily tip(s) into ` +
+            'mom_child_care/smart_tools.dailyTips',
+        );
+      }
+      if (updates.milestones) {
+        console.log(
+          `DRY-RUN MIGRATE ${updates.milestones.length} milestone group(s) into ` +
+            'mom_child_care/smart_tools.milestones',
+        );
+      }
+      for (const snapshot of legacyToArchive) {
+        console.log(
+          `DRY-RUN BACKUP mom_child_care/${snapshot.id} and mark it deprecated`,
+        );
+      }
+      return {
+        fieldsMigrated,
+        documentsArchived: legacyToArchive.length,
+      };
+    }
+
+    if (fieldsMigrated > 0) {
+      if (smartToolsSnapshot.exists) {
+        const backup = firestore
+          .collection('content_seed_backups')
+          .doc(`mom_child_care__smart_tools__before_legacy__${runId}`);
+        transaction.create(backup, {
+          sourcePath: smartToolsReference.path,
+          reason: 'before-legacy-content-consolidation',
+          backedUpAt: FieldValue.serverTimestamp(),
+          previousData: smartTools,
+        });
+      }
+
+      transaction.set(
+        smartToolsReference,
+        {
+          ...updates,
+          contentStructureVersion: 2,
+          legacyMigrationVersion,
+          legacySources: [...legacyById.keys()],
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    }
+
+    for (const snapshot of legacyToArchive) {
+      const backup = firestore
+        .collection('content_seed_backups')
+        .doc(`mom_child_care__legacy_${snapshot.id}__${runId}`);
+      transaction.create(backup, {
+        sourcePath: snapshot.ref.path,
+        reason: 'legacy-smart-tool-document',
+        backedUpAt: FieldValue.serverTimestamp(),
+        previousData: snapshot.data(),
+      });
+      transaction.set(
+        snapshot.ref,
+        {
+          deprecated: true,
+          migration: {
+            version: legacyMigrationVersion,
+            targetPath: smartToolsReference.path,
+            migratedAt: FieldValue.serverTimestamp(),
+          },
+        },
+        { merge: true },
+      );
+    }
+
+    return {
+      fieldsMigrated,
+      documentsArchived: legacyToArchive.length,
+    };
+  });
+}
+
+function preserveSmartToolContent(canonicalData, currentData) {
+  if (!currentData || typeof currentData !== 'object') return canonicalData;
+
+  const result = { ...canonicalData };
+  const dailyTips = stringList(currentData.dailyTips);
+  const milestones = mapList(currentData.milestones);
+  const vaccinationSchedule = mapList(currentData.vaccinationSchedule);
+  if (dailyTips.length > 0) result.dailyTips = dailyTips;
+  if (milestones.length > 0) result.milestones = milestones;
+  if (vaccinationSchedule.length > 0) {
+    result.vaccinationSchedule = vaccinationSchedule;
+  }
+  return result;
+}
+
+function firstNonEmptyStringList(...values) {
+  for (const value of values) {
+    const list = stringList(value);
+    if (list.length > 0) return list;
+  }
+  return [];
+}
+
+function firstNonEmptyMapList(...values) {
+  for (const value of values) {
+    const list = mapList(value);
+    if (list.length > 0) return list;
+  }
+  return [];
+}
+
+function stringList(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item) => typeof item === 'string')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
+function validateMigrationHelpers(canonicalSmartTools) {
+  assert.deepEqual(stringList(['  টিপস  ', '', 7]), ['টিপস']);
+  assert.equal(firstNonEmptyMapList([], [{ title: 'group' }]).length, 1);
+
+  const preserved = preserveSmartToolContent(canonicalSmartTools, {
+    dailyTips: ['  admin tip  '],
+    milestones: [{ title: 'age group' }],
+    vaccinationSchedule: ['invalid record'],
+  });
+  assert.deepEqual(preserved.dailyTips, ['admin tip']);
+  assert.equal(preserved.milestones.length, 1);
+  assert.deepEqual(
+    preserved.vaccinationSchedule,
+    canonicalSmartTools.vaccinationSchedule,
+  );
+}
+
+function arraysEqual(first, second) {
+  return (
+    first.length === second.length &&
+    first.every((item, index) => item === second[index])
+  );
 }
 
 function parseBoolean(value, name) {
@@ -180,7 +419,10 @@ function isCanonicalDocument(documentId, data) {
   if (data.topicCount !== sections.length) return false;
   if (documentId === 'smart_tools') {
     return sections.every(
-      (section) => hasText(section.title) && hasText(section.description),
+      (section, index) =>
+        section.id === smartToolSectionIds[index] &&
+        hasText(section.title) &&
+        hasText(section.description),
     );
   }
 

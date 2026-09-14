@@ -1,3 +1,5 @@
+import '../../../utils/mom_child_content_catalog.dart';
+
 class MomChildContentValidator {
   const MomChildContentValidator._();
 
@@ -53,10 +55,17 @@ class MomChildContentValidator {
     if (topicCount != sections.length) return false;
 
     if (documentId == 'smart_tools') {
-      return sections.every(
-        (section) =>
-            _hasText(section['title']) && _hasText(section['description']),
-      );
+      if (sections.length != momChildSmartToolIds.length) return false;
+
+      for (var index = 0; index < sections.length; index++) {
+        final section = sections[index];
+        if (section['id'] != momChildSmartToolIds[index] ||
+            !_hasText(section['title']) ||
+            !_hasText(section['description'])) {
+          return false;
+        }
+      }
+      return true;
     }
 
     return sections.every(
