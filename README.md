@@ -100,10 +100,13 @@ routes, icons, and tool behavior remain versioned app code, while the canonical
 tool labels live in `smart_tools.sections`.
 
 Before touching a legacy document, the workflow copies its complete previous
-value to `content_seed_backups`. It then keeps the source document and marks it
-`deprecated` with its migration target. No document or field is deleted, and a
-later run does not create duplicate migrations. Once the migration has run,
-the app reads only these fields:
+value to `content_seed_backups`. By default it keeps the source document and
+marks it `deprecated` with its migration target. The optional
+`delete_legacy_documents` input removes only `features` and `milestones`, after
+verifying the canonical `smart_tools` schema, merging any missing milestone
+records, and creating a fresh backup of each source. It never removes
+`daily_tips` or a canonical document. A later run is idempotent. Once the
+migration has run, the app reads only these fields:
 
 - `smart_tools.dailyTips` — the Mom & Child Care home carousel
 - `smart_tools.milestones` — the developmental milestone checklist
