@@ -138,16 +138,10 @@ class _AuthGate extends StatelessWidget {
         }
 
         if (snapshot.data != null) {
-          return HomePage(
-            isDarkMode: isDarkMode,
-            toggleTheme: toggleTheme,
-          );
+          return HomePage(isDarkMode: isDarkMode, toggleTheme: toggleTheme);
         }
 
-        return WelcomePage(
-          isDarkMode: isDarkMode,
-          toggleTheme: toggleTheme,
-        );
+        return WelcomePage(isDarkMode: isDarkMode, toggleTheme: toggleTheme);
       },
     );
   }

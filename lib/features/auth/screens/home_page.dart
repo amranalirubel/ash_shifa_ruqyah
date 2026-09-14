@@ -151,9 +151,7 @@ class HomePage extends StatelessWidget {
     } on FirebaseAuthException {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Logout করা যায়নি। আবার চেষ্টা করুন।'),
-          ),
+          const SnackBar(content: Text('Logout করা যায়নি। আবার চেষ্টা করুন।')),
         );
       }
     }

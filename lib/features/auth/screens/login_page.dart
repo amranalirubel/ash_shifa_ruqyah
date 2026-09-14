@@ -105,7 +105,8 @@ class _LoginPageState extends State<LoginPage> {
 
       final message = switch (error.code) {
         'invalid-email' => 'সঠিক ইমেইল ঠিকানা লিখুন।',
-        'too-many-requests' => 'অনেকবার চেষ্টা হয়েছে। কিছুক্ষণ পরে চেষ্টা করুন।',
+        'too-many-requests' =>
+          'অনেকবার চেষ্টা হয়েছে। কিছুক্ষণ পরে চেষ্টা করুন।',
         'network-request-failed' => 'ইন্টারনেট সংযোগ পরীক্ষা করুন।',
         'user-not-found' =>
           'অ্যাকাউন্ট থাকলে রিসেট লিংক পাঠানো হবে। Inbox ও Spam দেখুন।',

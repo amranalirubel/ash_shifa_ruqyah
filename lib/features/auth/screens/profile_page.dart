@@ -74,9 +74,9 @@ class _ProfilePageState extends State<ProfilePage> {
       await user.reload();
       if (mounted) {
         setState(() => _user = FirebaseAuth.instance.currentUser);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('প্রোফাইল আপডেট হয়েছে।')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('প্রোফাইল আপডেট হয়েছে।')));
       }
     } on FirebaseException catch (error) {
       if (mounted) {
@@ -191,11 +191,7 @@ class _ProfilePageState extends State<ProfilePage> {
             value: user.email ?? 'যোগ করা হয়নি',
           ),
           if (phone != null && phone.isNotEmpty)
-            _ProfileRow(
-              icon: Icons.phone_outlined,
-              label: 'ফোন',
-              value: phone,
-            ),
+            _ProfileRow(icon: Icons.phone_outlined, label: 'ফোন', value: phone),
           _ProfileRow(
             icon: user.emailVerified
                 ? Icons.verified_outlined

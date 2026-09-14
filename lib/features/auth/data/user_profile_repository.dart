@@ -45,6 +45,7 @@ class UserProfileRepository {
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
+
   Future<void> updateName({required User user, required String name}) async {
     final trimmedName = name.trim();
     if (trimmedName.length < 2 || trimmedName.length > 120) {
@@ -65,5 +66,4 @@ class UserProfileRepository {
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
-
 }
