@@ -25,7 +25,7 @@ class _DailyTipsPageState extends State<DailyTipsPage> {
     final now = DateTime.now();
     final month = now.month.toString().padLeft(2, '0');
     final day = now.day.toString().padLeft(2, '0');
-    return _preferencePrefix + now.year.toString() + '-' + month + '-' + day;
+    return '$_preferencePrefix${now.year}-$month-$day';
   }
 
   @override
@@ -240,7 +240,7 @@ class _ProgressCard extends StatelessWidget {
                 ),
               ),
               Text(
-                completed.toString() + '/' + total.toString(),
+                '$completed/$total',
                 style: TextStyle(
                   color: colors.primary,
                   fontSize: 18,

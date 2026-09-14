@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../data/health_content_catalog.dart';
 import '../widgets/health_source_sheet.dart';
 
 enum AdultBmiCategory {
@@ -120,9 +119,9 @@ class _BmiCalculatorScreenState extends State<BmiCalculatorScreen> {
     required String label,
   }) {
     final parsed = int.tryParse(value?.trim() ?? '');
-    if (parsed == null) return label + ' সঠিকভাবে লিখুন';
+    if (parsed == null) return '$label সঠিকভাবে লিখুন';
     if (parsed < min || parsed > max) {
-      return label + ' ' + min.toString() + '–' + max.toString() + ' দিন';
+      return '$label $min–$max দিন';
     }
     return null;
   }
@@ -135,15 +134,10 @@ class _BmiCalculatorScreenState extends State<BmiCalculatorScreen> {
   }) {
     final parsed = double.tryParse(value?.trim() ?? '');
     if (parsed == null || !parsed.isFinite) {
-      return label + ' সঠিকভাবে লিখুন';
+      return '$label সঠিকভাবে লিখুন';
     }
     if (parsed < min || parsed > max) {
-      return label +
-          ' ' +
-          min.toStringAsFixed(0) +
-          '–' +
-          max.toStringAsFixed(0) +
-          ' দিন';
+      return '$label ${min.toStringAsFixed(0)}–${max.toStringAsFixed(0)} দিন';
     }
     return null;
   }
@@ -349,11 +343,7 @@ class _BmiResultCard extends StatelessWidget {
 
     return Semantics(
       liveRegion: true,
-      label:
-          'BMI ' +
-          result.score.toStringAsFixed(1) +
-          '. ' +
-          result.category.label,
+      label: 'BMI ${result.score.toStringAsFixed(1)}. ${result.category.label}',
       child: Container(
         padding: const EdgeInsets.all(19),
         decoration: BoxDecoration(

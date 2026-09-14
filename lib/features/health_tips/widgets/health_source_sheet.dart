@@ -259,7 +259,7 @@ class _SourceCard extends StatelessWidget {
               const SizedBox(width: 5),
               Expanded(
                 child: Text(
-                  'Editorial check: ' + source.reviewedOn,
+                  'Editorial check: ${source.reviewedOn}',
                   style: TextStyle(
                     color: colors.onSurfaceVariant,
                     fontSize: 11,

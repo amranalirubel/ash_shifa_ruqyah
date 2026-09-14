@@ -26,11 +26,11 @@ void main() {
 
     for (final id in referencedIds) {
       final source = HealthContentCatalog.sources[id];
-      expect(source, isNotNull, reason: 'Missing health source: ' + id);
+      expect(source, isNotNull, reason: 'Missing health source: $id');
       expect(
         Uri.parse(source!.url).scheme,
         'https',
-        reason: 'Source must use HTTPS: ' + id,
+        reason: 'Source must use HTTPS: $id',
       );
       expect(source.organization.trim(), isNotEmpty);
       expect(source.title.trim(), isNotEmpty);

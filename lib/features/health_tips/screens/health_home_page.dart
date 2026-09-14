@@ -257,7 +257,6 @@ class _HealthBannerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final colors = Theme.of(context).colorScheme;
     final palette = <List<Color>>[
       const [Color(0xFF0F5132), Color(0xFF123C46)],
       const [Color(0xFF203A74), Color(0xFF262B55)],
@@ -270,7 +269,7 @@ class _HealthBannerCard extends StatelessWidget {
         : raw.map((color) => Color.lerp(color, Colors.white, 0.14)!).toList();
 
     return Semantics(
-      label: banner.title + '. ' + banner.body,
+      label: '${banner.title}. ${banner.body}',
       child: Container(
         padding: const EdgeInsets.fromLTRB(20, 19, 18, 16),
         decoration: BoxDecoration(
@@ -385,7 +384,7 @@ class _HealthSectionCard extends StatelessWidget {
 
     return Semantics(
       button: true,
-      label: section.title + '. ' + section.subtitle,
+      label: '${section.title}. ${section.subtitle}',
       child: Material(
         color: colors.surface,
         shape: RoundedRectangleBorder(

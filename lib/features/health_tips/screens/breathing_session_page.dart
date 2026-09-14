@@ -1,9 +1,6 @@
 import 'dart:async';
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 
-import '../data/health_content_catalog.dart';
 import '../widgets/health_source_sheet.dart';
 
 class BreathingSessionPage extends StatefulWidget {
@@ -31,9 +28,7 @@ class _BreathingSessionPageState extends State<BreathingSessionPage>
   String get _clock {
     final minutes = _remainingSeconds ~/ 60;
     final seconds = _remainingSeconds % 60;
-    return minutes.toString().padLeft(2, '0') +
-        ':' +
-        seconds.toString().padLeft(2, '0');
+    return "${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}";
   }
 
   @override

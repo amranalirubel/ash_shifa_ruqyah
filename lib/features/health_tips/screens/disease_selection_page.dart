@@ -22,7 +22,7 @@ class _DiseaseSelectionPageState extends State<DiseaseSelectionPage> {
     if (query.isEmpty) return _repository.dietGuides;
 
     return _repository.dietGuides.where((guide) {
-      final text = (guide.title + ' ' + guide.summary).toLowerCase();
+      final text = '${guide.title} ${guide.summary}'.toLowerCase();
       return text.contains(query);
     }).toList();
   }
@@ -198,7 +198,7 @@ class _DietGuideCard extends StatelessWidget {
 
     return Semantics(
       button: true,
-      label: guide.title + '. ' + guide.summary,
+      label: '${guide.title}. ${guide.summary}',
       child: Material(
         color: colors.surface,
         shape: RoundedRectangleBorder(
@@ -259,8 +259,7 @@ class _DietGuideCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 5),
                           Text(
-                            guide.sourceIds.length.toString() +
-                                'টি verified source',
+                            '${guide.sourceIds.length}টি verified source',
                             style: TextStyle(
                               color: accent,
                               fontSize: 10.5,

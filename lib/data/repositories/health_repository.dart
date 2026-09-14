@@ -33,7 +33,7 @@ class HealthRepository {
 
   /// Compatibility adapter for older screens and external callers.
   Future<List<String>> getDailyHealthTips() async {
-    return dailyTips.map((tip) => tip.title + ' — ' + tip.details).toList();
+    return dailyTips.map((tip) => '${tip.title} — ${tip.details}').toList();
   }
 
   /// Compatibility adapter that fixes the former title/name schema mismatch.

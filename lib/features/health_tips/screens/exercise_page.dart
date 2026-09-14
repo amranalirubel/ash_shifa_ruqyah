@@ -25,7 +25,7 @@ class _ExercisePageState extends State<ExercisePage> {
       final matchesCategory =
           _selectedCategory == null || guide.category == _selectedCategory;
       final haystack =
-          (guide.title + ' ' + guide.summary + ' ' + guide.category.label)
+          '${guide.title} ${guide.summary} ${guide.category.label}'
               .toLowerCase();
       return matchesCategory && (query.isEmpty || haystack.contains(query));
     }).toList();
@@ -138,7 +138,7 @@ class _ExercisePageState extends State<ExercisePage> {
                   ),
                   const Spacer(),
                   Text(
-                    guides.length.toString() + 'টি guide',
+                    '${guides.length}টি guide',
                     style: TextStyle(
                       color: colors.onSurfaceVariant,
                       fontSize: 12,
@@ -322,10 +322,8 @@ class MovementGuidePage extends StatelessWidget {
           Center(child: HealthEvidenceButton(sourceIds: guide.sourceIds)),
           const SizedBox(height: 10),
           Text(
-            'Content version ' +
-                HealthContentCatalog.schemaVersion.toString() +
-                ' • Editorial check ' +
-                HealthContentCatalog.editorialReviewDate,
+            'Content version ${HealthContentCatalog.schemaVersion} • '
+            'Editorial check ${HealthContentCatalog.editorialReviewDate}',
             textAlign: TextAlign.center,
             style: TextStyle(color: colors.onSurfaceVariant, fontSize: 10.5),
           ),
@@ -348,7 +346,7 @@ class _MovementGuideCard extends StatelessWidget {
 
     return Semantics(
       button: true,
-      label: guide.title + '. ' + guide.summary,
+      label: '${guide.title}. ${guide.summary}',
       child: Material(
         color: colors.surface,
         shape: RoundedRectangleBorder(
