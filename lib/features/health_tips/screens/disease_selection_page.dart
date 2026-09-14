@@ -1,9 +1,9 @@
-// lib/features/health_tips/screens/disease_selection_page.dart
 import 'package:flutter/material.dart';
 
 import '../../../data/repositories/health_repository.dart';
-
-//import 'diet_detail_screen.dart';
+import '../data/health_content_catalog.dart';
+import '../widgets/health_source_sheet.dart';
+import 'diet_detail_screen.dart';
 
 class DiseaseSelectionPage extends StatefulWidget {
   const DiseaseSelectionPage({super.key});
@@ -13,393 +13,278 @@ class DiseaseSelectionPage extends StatefulWidget {
 }
 
 class _DiseaseSelectionPageState extends State<DiseaseSelectionPage> {
-  final HealthRepository repo = HealthRepository();
-  Map<String, dynamic> diseaseMap = {};
-  String? selectedDisease;
-  bool isLoading = true;
-  bool hasLoadError = false;
+  static const HealthRepository _repository = HealthRepository();
 
-  @override
-  void initState() {
-    super.initState();
-    _loadData();
+  final TextEditingController _searchController = TextEditingController();
+
+  List<DietGuide> get _filteredGuides {
+    final query = _searchController.text.trim().toLowerCase();
+    if (query.isEmpty) return _repository.dietGuides;
+
+    return _repository.dietGuides.where((guide) {
+      final text = (guide.title + ' ' + guide.summary).toLowerCase();
+      return text.contains(query);
+    }).toList();
   }
 
-  Future<void> _loadData() async {
-    try {
-      final data = await repo.getDiseaseFoodMap();
-      if (!mounted) return;
-      setState(() {
-        diseaseMap = data;
-        hasLoadError = false;
-        isLoading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        diseaseMap = {};
-        hasLoadError = true;
-        isLoading = false;
-      });
-    }
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _open(DietGuide guide) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => DietDetailScreen(guide: guide)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final diseases = diseaseMap.keys.toList();
+    final colors = Theme.of(context).colorScheme;
+    final guides = _filteredGuides;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F1115),
       appBar: AppBar(
-        title: const Text(
-          "Health Companion",
-          style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+        title: const Text('খাদ্য ও জীবনযাপন'),
         centerTitle: true,
       ),
-      body: isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: Colors.greenAccent),
+      body: CustomScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            sliver: SliverToBoxAdapter(
+              child: Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      colors.primary.withValues(alpha: 0.18),
+                      colors.secondary.withValues(alpha: 0.09),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(23),
+                  border: Border.all(
+                    color: colors.primary.withValues(alpha: 0.26),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: colors.primary.withValues(alpha: 0.13),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Icon(
+                        Icons.restaurant_menu_rounded,
+                        color: colors.primary,
+                        size: 27,
+                      ),
+                    ),
+                    const SizedBox(width: 13),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Evidence-informed food guide',
+                            style: TextStyle(
+                              color: colors.onSurface,
+                              fontSize: 16.5,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'স্থানীয় খাবার বেছে নেওয়ার নীতি—কঠোর meal prescription নয়',
+                            style: TextStyle(
+                              color: colors.onSurfaceVariant,
+                              height: 1.35,
+                              fontSize: 12.2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SliverPadding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+            sliver: SliverToBoxAdapter(
+              child: HealthSafetyNotice(
+                title: 'ব্যক্তিভেদে পরিকল্পনা বদলায়',
+                message:
+                    'গর্ভাবস্থা, kidney/liver disease, food allergy, diabetes medicine/insulin বা অন্য dietary restriction থাকলে registered doctor/dietitian-এর individual plan অনুসরণ করুন।',
+              ),
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+            sliver: SliverToBoxAdapter(
+              child: TextField(
+                controller: _searchController,
+                onChanged: (_) => setState(() {}),
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  hintText: 'খাদ্য বা স্বাস্থ্য বিষয় খুঁজুন',
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  suffixIcon: _searchController.text.isEmpty
+                      ? null
+                      : IconButton(
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() {});
+                          },
+                          tooltip: 'Search clear করুন',
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                ),
+              ),
+            ),
+          ),
+          if (guides.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
+                child: Text(
+                  'কোনো matching guide পাওয়া যায়নি।',
+                  style: TextStyle(color: colors.onSurfaceVariant),
+                ),
+              ),
             )
-          : hasLoadError
-          ? _buildLoadError()
-          : SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              physics: const BouncingScrollPhysics(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 10),
-                  _buildHeader(),
-                  const SizedBox(height: 25),
-
-                  const Text(
-                    "আপনার সমস্যাটি নির্বাচন করুন",
-                    style: TextStyle(color: Colors.white70, fontSize: 14),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // ================== DROPDOWN (আগের মতো) ==================
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1C1F26),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Colors.greenAccent.withValues(alpha: 0.2),
-                        width: 1,
-                      ),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: selectedDisease,
-                        hint: const Text(
-                          "যেমন: ডায়াবেটিস, উচ্চ রক্তচাপ...",
-                          style: TextStyle(color: Colors.white38, fontSize: 15),
-                        ),
-                        isExpanded: true,
-                        dropdownColor: const Color(0xFF1C1F26),
-                        icon: const Icon(
-                          Icons.unfold_more,
-                          color: Colors.greenAccent,
-                        ),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                        ),
-                        items: diseases.map((disease) {
-                          return DropdownMenuItem<String>(
-                            value: disease,
-                            child: Text(disease),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() => selectedDisease = value);
-                        },
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 30),
-
-                  // ================== CONTENT (Animated Inline Detail) ==================
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 400),
-                    child: selectedDisease == null
-                        ? _buildQuickTipsSection()
-                        : _buildDetailSection(selectedDisease!),
-                  ),
-
-                  const SizedBox(height: 50),
-                ],
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+              sliver: SliverList.separated(
+                itemCount: guides.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  final guide = guides[index];
+                  return _DietGuideCard(
+                    guide: guide,
+                    onTap: () => _open(guide),
+                  );
+                },
               ),
             ),
-    );
-  }
-
-  Widget _buildLoadError() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.cloud_off_rounded,
-              color: Colors.white54,
-              size: 44,
-            ),
-            const SizedBox(height: 14),
-            const Text(
-              'স্বাস্থ্য তথ্য লোড করা যায়নি। ইন্টারনেট ও Firebase setup পরীক্ষা করুন।',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white70, height: 1.5),
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () {
-                setState(() => isLoading = true);
-                _loadData();
-              },
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('আবার চেষ্টা করুন'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Row(
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "সুস্থ থাকুন,",
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.5),
-                fontSize: 18,
-              ),
-            ),
-            const Text(
-              "আপনার ডায়েট জানুন",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        const Spacer(),
-        const CircleAvatar(
-          backgroundColor: Color(0xFF1C1F26),
-          child: Icon(Icons.health_and_safety, color: Colors.greenAccent),
-        ),
-      ],
-    );
-  }
-
-  // ================== Quick Tips Grid (যখন কিছু সিলেক্ট না করা হয়) ==================
-  Widget _buildQuickTipsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          "স্বাস্থ্য টিপস আপনার জন্য",
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 15),
-        GridView.count(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: 2,
-          mainAxisSpacing: 15,
-          crossAxisSpacing: 15,
-          childAspectRatio: 1.1,
-          children: [
-            _quickTipCard(
-              Icons.water_drop,
-              "পানি",
-              "দিনে অন্তত ৩ লিটার",
-              Colors.blueAccent,
-            ),
-            _quickTipCard(
-              Icons.directions_run,
-              "ব্যায়াম",
-              "প্রতিদিন ৩০ মিনিট",
-              Colors.orangeAccent,
-            ),
-            _quickTipCard(
-              Icons.bedtime,
-              "সুনিদ্রা",
-              "৭-৮ ঘণ্টা ঘুমান",
-              Colors.purpleAccent,
-            ),
-            _quickTipCard(
-              Icons.restaurant,
-              "সুষম খাবার",
-              "পরিমিত প্রোটিন",
-              Colors.greenAccent,
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _quickTipCard(IconData icon, String title, String sub, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1C1F26),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: color, size: 30),
-          const SizedBox(height: 10),
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          Text(
-            sub,
-            style: const TextStyle(color: Colors.white54, fontSize: 12),
-          ),
         ],
       ),
     );
   }
+}
 
-  // ================== Detail Section (Inline - আগের মতো) ==================
-  Widget _buildDetailSection(String disease) {
-    final data = diseaseMap[disease]!;
+class _DietGuideCard extends StatelessWidget {
+  const _DietGuideCard({required this.guide, required this.onTap});
 
-    return Column(
-      key: ValueKey(disease),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              width: 5,
-              height: 30,
-              decoration: BoxDecoration(
-                color: Colors.greenAccent,
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              disease,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ],
+  final DietGuide guide;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final rawAccent = switch (guide.iconKey) {
+      'glucose' => const Color(0xFF38BDF8),
+      'heart' => const Color(0xFFF472B6),
+      _ => const Color(0xFF22C55E),
+    };
+    final accent = isDark
+        ? rawAccent
+        : Color.lerp(rawAccent, Colors.black, 0.30)!;
+
+    return Semantics(
+      button: true,
+      label: guide.title + '. ' + guide.summary,
+      child: Material(
+        color: colors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(21),
+          side: BorderSide(color: colors.outline.withValues(alpha: 0.52)),
         ),
-        const SizedBox(height: 20),
-        _section(
-          "✅ যা খাবেন",
-          data["eat"] as List<dynamic>,
-          Colors.greenAccent,
-        ),
-        const SizedBox(height: 15),
-        _section(
-          "❌ যা এড়িয়ে চলবেন",
-          data["avoid"] as List<dynamic>,
-          Colors.redAccent,
-        ),
-        if (data["extra"] != null) ...[
-          const SizedBox(height: 20),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.amber.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.amber.withValues(alpha: 0.2)),
-            ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(15),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(
-                  Icons.lightbulb,
-                  color: Colors.amberAccent,
-                  size: 20,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    data["extra"] as String,
-                    style: const TextStyle(color: Colors.white70, height: 1.5),
+                Container(
+                  width: 53,
+                  height: 53,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(16),
                   ),
+                  child: Icon(
+                    healthIconFor(guide.iconKey),
+                    color: accent,
+                    size: 27,
+                  ),
+                ),
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        guide.title,
+                        style: TextStyle(
+                          color: colors.onSurface,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        guide.summary,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: colors.onSurfaceVariant,
+                          height: 1.38,
+                          fontSize: 12.2,
+                        ),
+                      ),
+                      const SizedBox(height: 7),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.fact_check_outlined,
+                            color: accent,
+                            size: 14,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            guide.sourceIds.length.toString() +
+                                'টি verified source',
+                            style: TextStyle(
+                              color: accent,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 7),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: colors.onSurfaceVariant,
+                  size: 16,
                 ),
               ],
             ),
           ),
-        ],
-        const SizedBox(height: 30),
-        const Center(
-          child: Text(
-            "বি:দ্র: জরুরি প্রয়োজনে ডাক্তারের পরামর্শ নিন।",
-            style: TextStyle(
-              color: Colors.white38,
-              fontSize: 12,
-              fontStyle: FontStyle.italic,
-            ),
-          ),
         ),
-      ],
-    );
-  }
-
-  Widget _section(String title, List<dynamic> items, Color color) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1C1F26),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 17,
-              color: color,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const Divider(color: Colors.white10, height: 20),
-          ...items.map(
-            (e) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Text(
-                "• $e",
-                style: const TextStyle(fontSize: 16, color: Colors.white70),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
