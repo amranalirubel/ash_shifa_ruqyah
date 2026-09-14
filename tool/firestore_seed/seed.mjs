@@ -14,7 +14,9 @@ const canonicalIds = [
   'instant_care',
 ];
 const legacySmartToolIds = ['daily_tips', 'features', 'milestones'];
+const removableLegacyIds = ['features', 'milestones'];
 const legacyMigrationVersion = 1;
+const legacyCleanupVersion = 1;
 const smartToolSectionIds = [
   'vaccination_schedule',
   'growth_tracking',
@@ -38,6 +40,10 @@ const dryRun = parseBoolean(process.env.DRY_RUN ?? 'true', 'DRY_RUN');
 const forceRefresh = parseBoolean(
   process.env.FORCE_REFRESH ?? 'false',
   'FORCE_REFRESH',
+);
+const deleteLegacyDocuments = parseBoolean(
+  process.env.DELETE_LEGACY_DOCUMENTS ?? 'false',
+  'DELETE_LEGACY_DOCUMENTS',
 );
 
 const rawDocuments = JSON.parse(await readFile(inputPath, 'utf8'));
@@ -158,6 +164,7 @@ const legacyResult = await consolidateLegacySmartTools({
   firestore,
   runId,
   dryRun,
+  deleteLegacyDocuments,
   canonicalSmartTools: documents.get('smart_tools'),
 });
 
@@ -171,7 +178,8 @@ if (dryRun) {
   console.log('Existing repaired documents were backed up before replacement.');
   console.log(
     `Legacy consolidation: ${legacyResult.fieldsMigrated} field(s) migrated, ` +
-      `${legacyResult.documentsArchived} legacy document(s) preserved and marked deprecated.`,
+      `${legacyResult.documentsArchived} legacy document(s) preserved and marked deprecated, ` +
+      `${legacyResult.documentsDeleted} legacy document(s) backed up and deleted.`,
   );
 }
 
@@ -179,6 +187,7 @@ async function consolidateLegacySmartTools({
   firestore,
   runId,
   dryRun,
+  deleteLegacyDocuments,
   canonicalSmartTools,
 }) {
   const smartToolsReference = firestore.collection('mom_child_care').doc('smart_tools');
@@ -226,10 +235,26 @@ async function consolidateLegacySmartTools({
     );
     if (currentMilestones.length === 0 && legacyMilestones.length > 0) {
       updates.milestones = legacyMilestones;
+    } else if (deleteLegacyDocuments && legacyMilestones.length > 0) {
+      const mergedMilestones = mergeUniqueMapLists(
+        currentMilestones,
+        legacyMilestones,
+      );
+      if (mergedMilestones.length !== currentMilestones.length) {
+        updates.milestones = mergedMilestones;
+      }
     }
 
+    const legacyToDelete = deleteLegacyDocuments
+      ? legacySnapshots.filter(
+          (snapshot) =>
+            snapshot.exists && removableLegacyIds.includes(snapshot.id),
+        )
+      : [];
+    const deletingIds = new Set(legacyToDelete.map((snapshot) => snapshot.id));
+
     const legacyToArchive = legacySnapshots.filter((snapshot) => {
-      if (!snapshot.exists) return false;
+      if (!snapshot.exists || deletingIds.has(snapshot.id)) return false;
       const migration = snapshot.data()?.migration;
       return (
         !migration ||
@@ -241,6 +266,14 @@ async function consolidateLegacySmartTools({
     const fieldsMigrated = ['dailyTips', 'milestones'].filter(
       (field) => updates[field] !== undefined,
     ).length;
+
+    if (legacyToDelete.length > 0) {
+      validateLegacyDeletion({
+        smartTools: { ...smartTools, ...updates },
+        legacyById,
+        deletingIds,
+      });
+    }
 
     if (dryRun) {
       if (updates.dailyTips) {
@@ -260,9 +293,15 @@ async function consolidateLegacySmartTools({
           `DRY-RUN BACKUP mom_child_care/${snapshot.id} and mark it deprecated`,
         );
       }
+      for (const snapshot of legacyToDelete) {
+        console.log(
+          `DRY-RUN BACKUP AND DELETE mom_child_care/${snapshot.id}`,
+        );
+      }
       return {
         fieldsMigrated,
         documentsArchived: legacyToArchive.length,
+        documentsDeleted: legacyToDelete.length,
       };
     }
 
@@ -316,9 +355,38 @@ async function consolidateLegacySmartTools({
       );
     }
 
+    for (const snapshot of legacyToDelete) {
+      const backup = firestore
+        .collection('content_seed_backups')
+        .doc(`mom_child_care__legacy_${snapshot.id}__before_delete__${runId}`);
+      transaction.create(backup, {
+        sourcePath: snapshot.ref.path,
+        reason: 'before-legacy-document-deletion',
+        backedUpAt: FieldValue.serverTimestamp(),
+        previousData: snapshot.data(),
+      });
+      transaction.delete(snapshot.ref);
+    }
+
+    if (legacyToDelete.length > 0) {
+      transaction.set(
+        smartToolsReference,
+        {
+          legacyCleanupVersion,
+          deletedLegacySources: FieldValue.arrayUnion(
+            ...legacyToDelete.map((snapshot) => snapshot.id),
+          ),
+          legacyCleanupAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    }
+
     return {
       fieldsMigrated,
       documentsArchived: legacyToArchive.length,
+      documentsDeleted: legacyToDelete.length,
     };
   });
 }
@@ -354,6 +422,55 @@ function firstNonEmptyMapList(...values) {
   return [];
 }
 
+function mergeUniqueMapLists(primary, secondary) {
+  const result = [...mapList(primary)];
+  const signatures = new Set(result.map(stableSerialize));
+  for (const item of mapList(secondary)) {
+    const signature = stableSerialize(item);
+    if (signatures.has(signature)) continue;
+    signatures.add(signature);
+    result.push(item);
+  }
+  return result;
+}
+
+function validateLegacyDeletion({smartTools, legacyById, deletingIds}) {
+  if (!isCanonicalDocument('smart_tools', smartTools)) {
+    throw new Error(
+      'Refusing legacy deletion: mom_child_care/smart_tools is not canonical.',
+    );
+  }
+
+  if (!deletingIds.has('milestones')) return;
+  const legacyMilestones = firstNonEmptyMapList(
+    legacyById.get('milestones')?.milestones,
+    legacyById.get('milestones')?.list,
+  );
+  const targetSignatures = new Set(
+    mapList(smartTools.milestones).map(stableSerialize),
+  );
+  if (
+    legacyMilestones.some((item) => !targetSignatures.has(stableSerialize(item)))
+  ) {
+    throw new Error(
+      'Refusing legacy deletion: milestone content was not fully transferred.',
+    );
+  }
+}
+
+function stableSerialize(value) {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableSerialize).join(',')}]`;
+  }
+  if (value && typeof value === 'object') {
+    const entries = Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableSerialize(value[key])}`);
+    return `{${entries.join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
 function stringList(value) {
   if (!Array.isArray(value)) return [];
   return value
@@ -365,6 +482,42 @@ function stringList(value) {
 function validateMigrationHelpers(canonicalSmartTools) {
   assert.deepEqual(stringList(['  টিপস  ', '', 7]), ['টিপস']);
   assert.equal(firstNonEmptyMapList([], [{ title: 'group' }]).length, 1);
+  assert.deepEqual(
+    mergeUniqueMapLists(
+      [{ title: 'existing', details: { b: 2, a: 1 } }],
+      [
+        { details: { a: 1, b: 2 }, title: 'existing' },
+        { title: 'legacy' },
+      ],
+    ),
+    [
+      { title: 'existing', details: { b: 2, a: 1 } },
+      { title: 'legacy' },
+    ],
+  );
+
+  const migratedMilestone = { title: 'legacy milestone' };
+  validateLegacyDeletion({
+    smartTools: {
+      ...canonicalSmartTools,
+      milestones: [migratedMilestone],
+    },
+    legacyById: new Map([
+      ['milestones', { milestones: [migratedMilestone] }],
+    ]),
+    deletingIds: new Set(['features', 'milestones']),
+  });
+  assert.throws(
+    () =>
+      validateLegacyDeletion({
+        smartTools: { ...canonicalSmartTools, milestones: [] },
+        legacyById: new Map([
+          ['milestones', { milestones: [migratedMilestone] }],
+        ]),
+        deletingIds: new Set(['milestones']),
+      }),
+    /milestone content was not fully transferred/,
+  );
 
   const preserved = preserveSmartToolContent(canonicalSmartTools, {
     dailyTips: ['  admin tip  '],
