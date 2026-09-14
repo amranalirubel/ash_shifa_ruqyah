@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/app_colors.dart';
 import '../data/user_profile_repository.dart';
+import 'auth_dialogs.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -27,46 +28,12 @@ class _ProfilePageState extends State<ProfilePage> {
     final user = _user;
     if (user == null || _isSaving) return;
 
-    final controller = TextEditingController(text: user.displayName);
-    final name = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('নাম পরিবর্তন'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          textCapitalization: TextCapitalization.words,
-          maxLength: 120,
-          decoration: const InputDecoration(
-            labelText: 'পূর্ণ নাম',
-            hintText: 'আপনার নাম লিখুন',
-          ),
-          onSubmitted: (value) => Navigator.pop(dialogContext, value),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('বাতিল'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, controller.text),
-            child: const Text('সংরক্ষণ'),
-          ),
-        ],
-      ),
+    final name = await showEditNameDialog(
+      context,
+      initialName: user.displayName ?? '',
     );
-    controller.dispose();
-
     final trimmedName = name?.trim();
     if (trimmedName == null) return;
-    if (trimmedName.length < 2) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('নাম কমপক্ষে ২ অক্ষরের হতে হবে।')),
-        );
-      }
-      return;
-    }
 
     setState(() => _isSaving = true);
     try {
@@ -94,25 +61,8 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _logout() async {
-    final shouldLogout = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Logout করবেন?'),
-        content: const Text('এই ডিভাইসে আপনার বর্তমান session বন্ধ হবে।'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('বাতিল'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Logout'),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldLogout != true) return;
+    final shouldLogout = await showLogoutConfirmation(context);
+    if (!shouldLogout || !mounted) return;
 
     try {
       await FirebaseAuth.instance.signOut();
