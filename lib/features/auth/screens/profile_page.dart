@@ -1,7 +1,8 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import '../../../core/app_colors.dart';
 import '../data/user_profile_repository.dart';
 import 'auth_dialogs.dart';
 
@@ -17,11 +18,24 @@ class _ProfilePageState extends State<ProfilePage> {
 
   User? _user;
   bool _isSaving = false;
+  bool _isSendingVerification = false;
 
   @override
   void initState() {
     super.initState();
     _user = FirebaseAuth.instance.currentUser;
+    unawaited(_refreshUser());
+  }
+
+  Future<void> _refreshUser() async {
+    try {
+      await _user?.reload();
+      if (mounted) {
+        setState(() => _user = FirebaseAuth.instance.currentUser);
+      }
+    } on FirebaseAuthException {
+      // Cached Auth data remains usable while offline.
+    }
   }
 
   Future<void> _editName() async {
@@ -60,6 +74,33 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  Future<void> _sendVerificationEmail() async {
+    final user = _user;
+    if (user == null || user.emailVerified || _isSendingVerification) return;
+
+    setState(() => _isSendingVerification = true);
+    try {
+      await user.sendEmailVerification();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Verification email পাঠানো হয়েছে। Inbox ও Spam দেখুন।'),
+          ),
+        );
+      }
+    } on FirebaseAuthException {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Verification email পাঠানো যায়নি। আবার চেষ্টা করুন।'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSendingVerification = false);
+    }
+  }
+
   Future<void> _logout() async {
     final shouldLogout = await showLogoutConfirmation(context);
     if (!shouldLogout || !mounted) return;
@@ -81,13 +122,16 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     final user = _user;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
     if (user == null) {
-      return const Scaffold(
-        backgroundColor: AppColors.darkBackground,
+      return Scaffold(
+        appBar: AppBar(title: const Text('প্রোফাইল')),
         body: Center(
           child: Text(
             'প্রোফাইল দেখতে Login করুন।',
-            style: TextStyle(color: Colors.white70),
+            style: TextStyle(color: colors.onSurfaceVariant),
           ),
         ),
       );
@@ -98,38 +142,27 @@ class _ProfilePageState extends State<ProfilePage> {
     final phone = user.phoneNumber?.trim();
 
     return Scaffold(
-      backgroundColor: AppColors.darkBackground,
       appBar: AppBar(
         title: const Text('প্রোফাইল'),
         centerTitle: true,
-        backgroundColor: AppColors.primaryapp,
       ),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.fromLTRB(18, 10, 18, 28),
         children: [
-          const SizedBox(height: 8),
-          const CircleAvatar(
-            radius: 42,
-            backgroundColor: Color(0xFF214C3A),
-            child: Icon(Icons.person_rounded, color: Colors.white, size: 46),
+          _ProfileHeader(
+            name: visibleName,
+            email: user.email ?? 'ইমেইল পাওয়া যায়নি',
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           Text(
-            visibleName,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 22,
+            'Account information',
+            style: TextStyle(
+              color: colors.onSurface,
+              fontSize: 16,
               fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            user.email ?? 'ইমেইল পাওয়া যায়নি',
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white60),
-          ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 10),
           _ProfileRow(
             icon: Icons.badge_outlined,
             label: 'নাম',
@@ -144,12 +177,13 @@ class _ProfilePageState extends State<ProfilePage> {
             _ProfileRow(icon: Icons.phone_outlined, label: 'ফোন', value: phone),
           _ProfileRow(
             icon: user.emailVerified
-                ? Icons.verified_outlined
+                ? Icons.verified_rounded
                 : Icons.info_outline_rounded,
             label: 'ইমেইল স্ট্যাটাস',
             value: user.emailVerified ? 'Verified' : 'Not verified',
+            statusColor: user.emailVerified ? colors.primary : colors.secondary,
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
           FilledButton.icon(
             onPressed: _isSaving ? null : _editName,
             icon: _isSaving
@@ -160,22 +194,105 @@ class _ProfilePageState extends State<ProfilePage> {
                 : const Icon(Icons.edit_outlined),
             label: const Text('নাম পরিবর্তন'),
           ),
+          if (!user.emailVerified) ...[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _isSendingVerification
+                  ? null
+                  : _sendVerificationEmail,
+              icon: _isSendingVerification
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.mark_email_read_outlined),
+              label: const Text('Verification email পাঠান'),
+            ),
+          ],
           const SizedBox(height: 10),
           OutlinedButton.icon(
             onPressed: _logout,
             icon: const Icon(Icons.logout_rounded),
             label: const Text('Logout'),
             style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.redAccent,
-              side: const BorderSide(color: Colors.redAccent),
+              foregroundColor: colors.error,
+              side: BorderSide(color: colors.error),
             ),
           ),
-          const SizedBox(height: 14),
-          const Text(
+          const SizedBox(height: 16),
+          Text(
             'এখন শুধু প্রয়োজনীয় account তথ্য রাখা হয়েছে। ঠিকানা, জন্মতারিখ '
             'বা অন্যান্য তথ্য প্রয়োজন হলে পরে যোগ করা যাবে।',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white38, height: 1.4, fontSize: 12),
+            style: TextStyle(
+              color: colors.onSurfaceVariant,
+              height: 1.45,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileHeader extends StatelessWidget {
+  const _ProfileHeader({required this.name, required this.email});
+
+  final String name;
+  final String email;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 22, 18, 20),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: colors.outline.withValues(alpha: 0.62)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(
+              alpha: Theme.of(context).brightness == Brightness.dark
+                  ? 0.22
+                  : 0.07,
+            ),
+            blurRadius: 22,
+            offset: const Offset(0, 9),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          CircleAvatar(
+            radius: 41,
+            backgroundColor: colors.primaryContainer,
+            child: Icon(
+              Icons.person_rounded,
+              color: colors.onPrimaryContainer,
+              size: 45,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            name,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: colors.onSurface,
+              fontSize: 21,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            email,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: colors.onSurfaceVariant,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ),
@@ -188,40 +305,57 @@ class _ProfileRow extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
+    this.statusColor,
   });
 
   final IconData icon;
   final String label;
   final String value;
+  final Color? statusColor;
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final accent = statusColor ?? colors.primary;
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      margin: const EdgeInsets.only(bottom: 9),
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.06),
+        color: colors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: colors.outline.withValues(alpha: 0.58)),
       ),
       child: Row(
         children: [
-          Icon(icon, color: Colors.greenAccent.shade400),
-          const SizedBox(width: 13),
+          Container(
+            width: 39,
+            height: 39,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.13),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: accent, size: 21),
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   label,
-                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 Text(
                   value,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
+                  style: TextStyle(
+                    color: colors.onSurface,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ],

@@ -25,9 +25,20 @@ class _LogoutConfirmationDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return AlertDialog(
+      backgroundColor: colors.surface,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      icon: Icon(Icons.logout_rounded, color: colors.error, size: 30),
       title: const Text('Logout করবেন?'),
-      content: const Text('এই ডিভাইসে আপনার বর্তমান session বন্ধ হবে।'),
+      content: Text(
+        'এই ডিভাইসে আপনার বর্তমান session বন্ধ হবে।',
+        textAlign: TextAlign.center,
+        style: TextStyle(color: colors.onSurfaceVariant, height: 1.4),
+      ),
+      actionsPadding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
       actions: [
         TextButton(
           onPressed: () {
@@ -39,6 +50,10 @@ class _LogoutConfirmationDialog extends StatelessWidget {
           onPressed: () {
             Navigator.of(context, rootNavigator: true).pop(true);
           },
+          style: FilledButton.styleFrom(
+            backgroundColor: colors.error,
+            foregroundColor: colors.onError,
+          ),
           child: const Text('Logout'),
         ),
       ],
@@ -78,8 +93,15 @@ class _EditNameDialogState extends State<_EditNameDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return AlertDialog(
+      backgroundColor: colors.surface,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      icon: Icon(Icons.edit_outlined, color: colors.primary, size: 30),
       title: const Text('নাম পরিবর্তন'),
+      scrollable: true,
       content: Form(
         key: _formKey,
         child: TextFormField(
@@ -101,6 +123,7 @@ class _EditNameDialogState extends State<_EditNameDialog> {
           onFieldSubmitted: (_) => _submit(),
         ),
       ),
+      actionsPadding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
       actions: [
         TextButton(
           onPressed: () {

@@ -5,9 +5,11 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:screen_security/screen_security.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_options.dart';
 import 'core/app_colors.dart';
+import 'core/app_theme.dart';
 import 'core/utils/seed_firestore.dart';
 import 'features/auth/screens/home_page.dart';
 import 'features/auth/screens/welcome_page.dart';
@@ -95,8 +97,44 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  bool isDarkMode = true;
-  void toggleTheme() => setState(() => isDarkMode = !isDarkMode);
+  static const _themePreferenceKey = 'app_dark_mode';
+
+  late bool isDarkMode;
+
+  @override
+  void initState() {
+    super.initState();
+    isDarkMode =
+        WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+        Brightness.dark;
+    unawaited(_restoreThemePreference());
+  }
+
+  Future<void> _restoreThemePreference() async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final savedMode = preferences.getBool(_themePreferenceKey);
+      if (!mounted || savedMode == null || savedMode == isDarkMode) return;
+      setState(() => isDarkMode = savedMode);
+    } catch (error) {
+      debugPrint('Theme preference could not be restored: $error');
+    }
+  }
+
+  void toggleTheme() {
+    final nextMode = !isDarkMode;
+    setState(() => isDarkMode = nextMode);
+    unawaited(_saveThemePreference(nextMode));
+  }
+
+  Future<void> _saveThemePreference(bool darkMode) async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setBool(_themePreferenceKey, darkMode);
+    } catch (error) {
+      debugPrint('Theme preference could not be saved: $error');
+    }
+  }
 
   @override
   void didChangeDependencies() {
@@ -108,12 +146,12 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(brightness: Brightness.light),
-      darkTheme: ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: AppColors.background,
-      ),
+      title: 'Ash-Shifa Ruqyah',
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
       themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
+      themeAnimationDuration: const Duration(milliseconds: 260),
+      themeAnimationCurve: Curves.easeOutCubic,
       home: _AuthGate(isDarkMode: isDarkMode, toggleTheme: toggleTheme),
     );
   }
@@ -132,7 +170,6 @@ class _AuthGate extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
-            backgroundColor: AppColors.darkBackground,
             body: Center(child: CircularProgressIndicator()),
           );
         }

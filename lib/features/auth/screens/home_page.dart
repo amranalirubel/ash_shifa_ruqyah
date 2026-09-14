@@ -9,6 +9,7 @@ import 'package:ash_shifa_ruqyah/features/prayer_reminder/prayer_reminder_page.d
 import 'package:ash_shifa_ruqyah/features/ruqyah/screens/ruqyah_page.dart';
 
 import 'auth_dialogs.dart';
+import 'login_page.dart';
 import 'profile_page.dart';
 
 class HomePage extends StatelessWidget {
@@ -24,138 +25,135 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+    final palette = _HomePalette(isDarkMode: isDarkMode);
+    final features = _features();
     final displayName = user?.displayName?.trim();
     final visibleName = displayName != null && displayName.isNotEmpty
         ? displayName
         : 'Ash-Shifa Ruqyah';
-    final features = _features();
-    final background = isDarkMode
-        ? const Color(0xFF070B12)
-        : const Color(0xFFF4F7F5);
-    final primaryText = isDarkMode ? Colors.white : const Color(0xFF111827);
-    final secondaryText = isDarkMode ? Colors.white60 : const Color(0xFF5B6472);
 
     return Scaffold(
-      backgroundColor: background,
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Opacity(
-              opacity: isDarkMode ? 0.08 : 0.04,
-              child: Image.asset('assets/banner.png', fit: BoxFit.cover),
-            ),
+      backgroundColor: palette.background,
+      appBar: _DashboardAppBar(
+        name: visibleName,
+        palette: palette,
+        isSignedIn: user != null,
+        onThemePressed: toggleTheme,
+        onLogoutPressed: user == null ? null : () => _logout(context),
+      ),
+      body: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.topRight,
+            radius: 1.15,
+            colors: [
+              palette.green.withValues(alpha: isDarkMode ? 0.10 : 0.07),
+              palette.background.withValues(alpha: 0),
+              palette.background,
+            ],
+            stops: const [0, 0.52, 1],
           ),
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: isDarkMode
-                      ? const [
-                          Color(0xE6070B12),
-                          Color(0xF2070B12),
-                          Color(0xFF070B12),
-                        ]
-                      : const [
-                          Color(0xE6F4F7F5),
-                          Color(0xF2F4F7F5),
-                          Color(0xFFF4F7F5),
-                        ],
-                ),
-              ),
-            ),
-          ),
-          SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final useSingleColumn = constraints.maxWidth < 340;
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final singleColumn = constraints.maxWidth < 340;
+            final compactHeight = constraints.maxHeight < 690;
 
-                return CustomScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  slivers: [
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-                      sliver: SliverToBoxAdapter(
-                        child: _HomeHeader(
-                          name: visibleName,
-                          isSignedIn: user != null,
-                          isDarkMode: isDarkMode,
-                          primaryText: primaryText,
-                          secondaryText: secondaryText,
-                          onThemePressed: toggleTheme,
-                          onProfilePressed: user == null
-                              ? () => Navigator.of(context).maybePop()
-                              : () => _open(context, const ProfilePage()),
-                          onLogoutPressed: user == null
-                              ? null
-                              : () => _logout(context),
-                        ),
-                      ),
+            return CustomScrollView(
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                SliverPadding(
+                  padding: EdgeInsets.fromLTRB(
+                    18,
+                    compactHeight ? 10 : 16,
+                    18,
+                    0,
+                  ),
+                  sliver: SliverToBoxAdapter(
+                    child: _InspirationCard(
+                      palette: palette,
+                      compact: compactHeight,
                     ),
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-                      sliver: SliverToBoxAdapter(
-                        child: _InspirationCard(isDarkMode: isDarkMode),
-                      ),
+                  ),
+                ),
+                SliverPadding(
+                  padding: EdgeInsets.fromLTRB(
+                    18,
+                    compactHeight ? 14 : 22,
+                    18,
+                    10,
+                  ),
+                  sliver: SliverToBoxAdapter(
+                    child: _SectionHeading(palette: palette),
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  sliver: SliverGrid(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: singleColumn ? 1 : 2,
+                      mainAxisSpacing: 11,
+                      crossAxisSpacing: 11,
+                      mainAxisExtent: singleColumn
+                          ? 126
+                          : compactHeight
+                          ? 116
+                          : 132,
                     ),
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 26, 20, 13),
-                      sliver: SliverToBoxAdapter(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'আপনার প্রয়োজনীয় সেবা',
-                              style: TextStyle(
-                                color: primaryText,
-                                fontSize: 19,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              'এক জায়গায় পরিবার, স্বাস্থ্য ও দৈনন্দিন সহায়তা',
-                              style: TextStyle(
-                                color: secondaryText,
-                                fontSize: 12.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    SliverPadding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      sliver: SliverGrid(
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: useSingleColumn ? 1 : 2,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          mainAxisExtent: useSingleColumn ? 138 : 170,
-                        ),
-                        delegate: SliverChildBuilderDelegate((context, index) {
-                          final feature = features[index];
-                          return _FeatureCard(
-                            feature: feature,
-                            isDarkMode: isDarkMode,
-                            onTap: () => Navigator.of(
-                              context,
-                            ).push(MaterialPageRoute(builder: feature.builder)),
-                          );
-                        }, childCount: features.length),
-                      ),
-                    ),
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 22, 20, 28),
-                      sliver: SliverToBoxAdapter(
-                        child: _SafetyNote(isDarkMode: isDarkMode),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final feature = features[index];
+                      return _FeatureCard(
+                        feature: feature,
+                        palette: palette,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).push(MaterialPageRoute(builder: feature.builder)),
+                      );
+                    }, childCount: features.length),
+                  ),
+                ),
+                SliverPadding(
+                  padding: EdgeInsets.fromLTRB(
+                    18,
+                    compactHeight ? 10 : 18,
+                    18,
+                    compactHeight ? 10 : 22,
+                  ),
+                  sliver: SliverToBoxAdapter(
+                    child: _SafetyNote(palette: palette),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: 0,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        onDestinationSelected: (index) {
+          _openBottomDestination(context, index, isSignedIn: user != null);
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home_rounded),
+            label: 'হোম',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.auto_stories_outlined),
+            selectedIcon: Icon(Icons.auto_stories_rounded),
+            label: 'রুকইয়াহ',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.family_restroom_outlined),
+            selectedIcon: Icon(Icons.family_restroom_rounded),
+            label: 'যত্ন',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline_rounded),
+            selectedIcon: Icon(Icons.person_rounded),
+            label: 'প্রোফাইল',
           ),
         ],
       ),
@@ -167,7 +165,7 @@ class HomePage extends StatelessWidget {
       title: 'নামাজের সময়',
       subtitle: 'সময় ও রিমাইন্ডার',
       icon: Icons.schedule_rounded,
-      accent: const Color(0xFFFFB020),
+      accent: const Color(0xFFF4B942),
       builder: (_) => const PrayerReminderPage(),
     ),
     _HomeFeature(
@@ -222,106 +220,120 @@ class HomePage extends StatelessWidget {
     }
   }
 
+  void _openBottomDestination(
+    BuildContext context,
+    int index, {
+    required bool isSignedIn,
+  }) {
+    switch (index) {
+      case 0:
+        return;
+      case 1:
+        _open(context, const RuqyahPage());
+        return;
+      case 2:
+        _open(context, const MomChildCarePage());
+        return;
+      case 3:
+        if (isSignedIn) {
+          _open(context, const ProfilePage());
+        } else {
+          _open(context, const LoginPage());
+        }
+        return;
+    }
+  }
+
   void _open(BuildContext context, Widget page) {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
   }
 }
 
-class _HomeHeader extends StatelessWidget {
-  const _HomeHeader({
+class _DashboardAppBar extends StatelessWidget implements PreferredSizeWidget {
+  const _DashboardAppBar({
     required this.name,
+    required this.palette,
     required this.isSignedIn,
-    required this.isDarkMode,
-    required this.primaryText,
-    required this.secondaryText,
     required this.onThemePressed,
-    required this.onProfilePressed,
     this.onLogoutPressed,
   });
 
   final String name;
+  final _HomePalette palette;
   final bool isSignedIn;
-  final bool isDarkMode;
-  final Color primaryText;
-  final Color secondaryText;
   final VoidCallback onThemePressed;
-  final VoidCallback onProfilePressed;
   final VoidCallback? onLogoutPressed;
 
   @override
+  Size get preferredSize => const Size.fromHeight(78);
+
+  @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'আসসালামু আলাইকুম',
-                style: TextStyle(
-                  color: secondaryText,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: primaryText,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
+    return AppBar(
+      toolbarHeight: preferredSize.height,
+      backgroundColor: palette.background,
+      surfaceTintColor: Colors.transparent,
+      titleSpacing: 18,
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'আসসালামু আলাইকুম',
+            style: TextStyle(
+              color: palette.secondaryText,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ),
-        const SizedBox(width: 10),
-        _HeaderActionButton(
-          icon: isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-          tooltip: isDarkMode ? 'Light mode' : 'Dark mode',
-          accent: const Color(0xFFFFB020),
-          isDarkMode: isDarkMode,
+          const SizedBox(height: 2),
+          Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: palette.primaryText,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        _AppBarAction(
+          icon: palette.isDarkMode
+              ? Icons.light_mode_rounded
+              : Icons.dark_mode_rounded,
+          tooltip: palette.isDarkMode ? 'Light mode' : 'Dark mode',
+          color: palette.gold,
           onPressed: onThemePressed,
         ),
-        const SizedBox(width: 8),
-        _HeaderActionButton(
-          icon: isSignedIn ? Icons.person_outline_rounded : Icons.login_rounded,
-          tooltip: isSignedIn ? 'প্রোফাইল' : 'Login',
-          accent: const Color(0xFF35D399),
-          isDarkMode: isDarkMode,
-          onPressed: onProfilePressed,
-        ),
-        if (onLogoutPressed != null) ...[
-          const SizedBox(width: 8),
-          _HeaderActionButton(
+        if (isSignedIn && onLogoutPressed != null) ...[
+          const SizedBox(width: 7),
+          _AppBarAction(
             icon: Icons.logout_rounded,
             tooltip: 'Logout',
-            accent: const Color(0xFFFB7185),
-            isDarkMode: isDarkMode,
+            color: palette.rose,
             onPressed: onLogoutPressed!,
           ),
         ],
+        const SizedBox(width: 14),
       ],
     );
   }
 }
 
-class _HeaderActionButton extends StatelessWidget {
-  const _HeaderActionButton({
+class _AppBarAction extends StatelessWidget {
+  const _AppBarAction({
     required this.icon,
     required this.tooltip,
-    required this.accent,
-    required this.isDarkMode,
+    required this.color,
     required this.onPressed,
   });
 
   final IconData icon;
   final String tooltip;
-  final Color accent;
-  final bool isDarkMode;
+  final Color color;
   final VoidCallback onPressed;
 
   @override
@@ -329,19 +341,19 @@ class _HeaderActionButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: isDarkMode ? const Color(0xFF111827) : Colors.white,
-        borderRadius: BorderRadius.circular(15),
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(14),
         child: InkWell(
           onTap: onPressed,
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: BorderRadius.circular(14),
           child: Container(
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(15),
-              border: Border.all(color: accent.withValues(alpha: 0.30)),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: color.withValues(alpha: 0.48)),
             ),
-            child: Icon(icon, color: accent, size: 21),
+            child: Icon(icon, color: color, size: 21),
           ),
         ),
       ),
@@ -350,71 +362,75 @@ class _HeaderActionButton extends StatelessWidget {
 }
 
 class _InspirationCard extends StatelessWidget {
-  const _InspirationCard({required this.isDarkMode});
+  const _InspirationCard({required this.palette, required this.compact});
 
-  final bool isDarkMode;
+  final _HomePalette palette;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    final surface = Color.alphaBlend(
+      palette.gold.withValues(alpha: palette.isDarkMode ? 0.10 : 0.08),
+      palette.surface,
+    );
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+      padding: EdgeInsets.fromLTRB(
+        compact ? 14 : 20,
+        compact ? 13 : 18,
+        compact ? 14 : 20,
+        compact ? 13 : 18,
+      ),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isDarkMode
-              ? const [Color(0xFF111A2E), Color(0xFF151B2C)]
-              : const [Color(0xFFFFFFFF), Color(0xFFF2F7F4)],
-        ),
+        color: surface,
+        borderRadius: BorderRadius.circular(23),
         border: Border.all(
-          color: const Color(0xFFFFB020).withValues(alpha: 0.30),
+          color: palette.gold.withValues(alpha: palette.isDarkMode ? 0.46 : 0.58),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDarkMode ? 0.24 : 0.08),
-            blurRadius: 26,
-            offset: const Offset(0, 12),
+            color: palette.shadow,
+            blurRadius: 24,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(
-                Icons.auto_awesome_rounded,
-                color: Color(0xFFFFB020),
-                size: 18,
-              ),
-              SizedBox(width: 8),
+              Icon(Icons.auto_awesome_rounded, color: palette.gold, size: 17),
+              const SizedBox(width: 7),
               Text(
                 'আজকের আয়াত',
                 style: TextStyle(
-                  color: Color(0xFFFFB020),
+                  color: palette.gold,
                   fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: compact ? 6 : 11),
           Text(
             '“আমি নাযিল করছি এমন কোরআন, যা মুমিনদের জন্য শিফা ও রহমত।”',
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: isDarkMode ? Colors.white : const Color(0xFF172033),
-              fontSize: 15.5,
-              height: 1.55,
+              color: palette.primaryText,
+              fontSize: compact ? 13.8 : 15.2,
+              height: 1.48,
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 7),
+          SizedBox(height: compact ? 3 : 7),
           Text(
             'সূরা আল-ইসরা • আয়াত ৮২',
             style: TextStyle(
-              color: isDarkMode ? Colors.white54 : const Color(0xFF6B7280),
+              color: palette.secondaryText,
               fontSize: 11.5,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
@@ -423,15 +439,47 @@ class _InspirationCard extends StatelessWidget {
   }
 }
 
+class _SectionHeading extends StatelessWidget {
+  const _SectionHeading({required this.palette});
+
+  final _HomePalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'আপনার প্রয়োজনীয় সেবা',
+          style: TextStyle(
+            color: palette.primaryText,
+            fontSize: 18.5,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          'এক জায়গায় পরিবার, স্বাস্থ্য ও দৈনন্দিন সহায়তা',
+          style: TextStyle(
+            color: palette.secondaryText,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _FeatureCard extends StatefulWidget {
   const _FeatureCard({
     required this.feature,
-    required this.isDarkMode,
+    required this.palette,
     required this.onTap,
   });
 
   final _HomeFeature feature;
-  final bool isDarkMode;
+  final _HomePalette palette;
   final VoidCallback onTap;
 
   @override
@@ -443,46 +491,36 @@ class _FeatureCardState extends State<_FeatureCard> {
 
   @override
   Widget build(BuildContext context) {
-    final accent = widget.feature.accent;
-    final titleColor = widget.isDarkMode
-        ? Colors.white
-        : const Color(0xFF111827);
-    final subtitleColor = widget.isDarkMode
-        ? Colors.white54
-        : const Color(0xFF667085);
+    final palette = widget.palette;
+    final accent = palette.effectiveAccent(widget.feature.accent);
+    final surface = Color.alphaBlend(
+      accent.withValues(alpha: palette.isDarkMode ? 0.17 : 0.11),
+      palette.surface,
+    );
 
     return Semantics(
       button: true,
       label: widget.feature.title,
       child: AnimatedScale(
         scale: _pressed ? 0.975 : 1,
-        duration: const Duration(milliseconds: 120),
+        duration: const Duration(milliseconds: 110),
         curve: Curves.easeOut,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
+          duration: const Duration(milliseconds: 150),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: widget.isDarkMode
-                  ? [
-                      accent.withValues(alpha: _pressed ? 0.18 : 0.11),
-                      const Color(0xFF111827),
-                    ]
-                  : [
-                      accent.withValues(alpha: _pressed ? 0.14 : 0.08),
-                      Colors.white,
-                    ],
-            ),
+            color: surface,
+            borderRadius: BorderRadius.circular(21),
             border: Border.all(
-              color: accent.withValues(alpha: _pressed ? 0.55 : 0.28),
+              color: accent.withValues(alpha: _pressed ? 0.76 : 0.48),
+              width: _pressed ? 1.3 : 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: accent.withValues(alpha: _pressed ? 0.18 : 0.07),
-                blurRadius: _pressed ? 20 : 14,
-                offset: const Offset(0, 8),
+                color: _pressed
+                    ? accent.withValues(alpha: 0.19)
+                    : palette.shadow,
+                blurRadius: _pressed ? 19 : 13,
+                offset: const Offset(0, 7),
               ),
             ],
           ),
@@ -494,57 +532,59 @@ class _FeatureCardState extends State<_FeatureCard> {
               onHighlightChanged: (value) {
                 if (mounted) setState(() => _pressed = value);
               },
-              splashColor: accent.withValues(alpha: 0.12),
+              splashColor: accent.withValues(alpha: 0.16),
               highlightColor: Colors.transparent,
               child: Padding(
-                padding: const EdgeInsets.all(15),
+                padding: const EdgeInsets.fromLTRB(14, 13, 12, 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
                         Container(
-                          width: 43,
-                          height: 43,
+                          width: 39,
+                          height: 39,
                           decoration: BoxDecoration(
-                            color: accent.withValues(alpha: 0.17),
-                            borderRadius: BorderRadius.circular(14),
+                            color: Color.alphaBlend(
+                              accent.withValues(alpha: 0.20),
+                              palette.surface,
+                            ),
+                            borderRadius: BorderRadius.circular(13),
                           ),
                           child: Icon(
                             widget.feature.icon,
                             color: accent,
-                            size: 24,
+                            size: 22,
                           ),
                         ),
                         const Spacer(),
                         Icon(
-                          Icons.north_east_rounded,
-                          color: accent.withValues(alpha: 0.72),
-                          size: 18,
+                          Icons.arrow_outward_rounded,
+                          color: accent,
+                          size: 17,
                         ),
                       ],
                     ),
                     const Spacer(),
                     Text(
                       widget.feature.title,
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: titleColor,
-                        fontSize: 15.5,
-                        height: 1.2,
+                        color: palette.primaryText,
+                        fontSize: 14.7,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: 5),
+                    const SizedBox(height: 3),
                     Text(
                       widget.feature.subtitle,
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: subtitleColor,
-                        fontSize: 11.5,
-                        height: 1.25,
+                        color: palette.secondaryText,
+                        fontSize: 10.8,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ],
@@ -559,31 +599,55 @@ class _FeatureCardState extends State<_FeatureCard> {
 }
 
 class _SafetyNote extends StatelessWidget {
-  const _SafetyNote({required this.isDarkMode});
+  const _SafetyNote({required this.palette});
 
-  final bool isDarkMode;
+  final _HomePalette palette;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Icon(
-          Icons.verified_user_outlined,
-          color: Color(0xFF35D399),
-          size: 17,
-        ),
+        Icon(Icons.shield_outlined, color: palette.green, size: 17),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
             'আপনার account ও ব্যক্তিগত তথ্য নিরাপদ রাখুন।',
             style: TextStyle(
-              color: isDarkMode ? Colors.white38 : const Color(0xFF7A8493),
+              color: palette.secondaryText,
               fontSize: 11.5,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ),
       ],
     );
+  }
+}
+
+class _HomePalette {
+  _HomePalette({required this.isDarkMode});
+
+  final bool isDarkMode;
+
+  Color get background =>
+      isDarkMode ? const Color(0xFF07111F) : const Color(0xFFF1F5F3);
+  Color get surface =>
+      isDarkMode ? const Color(0xFF0E1A2B) : const Color(0xFFFFFFFF);
+  Color get primaryText =>
+      isDarkMode ? const Color(0xFFF8FAFC) : const Color(0xFF10211B);
+  Color get secondaryText =>
+      isDarkMode ? const Color(0xFFC2CFDD) : const Color(0xFF40554D);
+  Color get green =>
+      isDarkMode ? const Color(0xFF55E0AC) : const Color(0xFF087A57);
+  Color get gold =>
+      isDarkMode ? const Color(0xFFF6C453) : const Color(0xFF8A5A00);
+  Color get rose =>
+      isDarkMode ? const Color(0xFFFF9AB0) : const Color(0xFFB4234D);
+  Color get shadow => Colors.black.withValues(alpha: isDarkMode ? 0.24 : 0.09);
+
+  Color effectiveAccent(Color color) {
+    if (isDarkMode) return color;
+    return Color.lerp(color, Colors.black, 0.30)!;
   }
 }
 
