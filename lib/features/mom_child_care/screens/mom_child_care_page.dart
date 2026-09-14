@@ -8,6 +8,7 @@ import '../../../core/app_colors.dart';
 import '../../../data/models/problem_model.dart';
 import '../../../data/repositories/mom_child_care_repository.dart';
 import '../../../services/notification_service.dart';
+import '../../../utils/mom_child_content_catalog.dart';
 import '../../ruqyah/screens/content_viewer_screen.dart';
 
 class MomChildCarePage extends StatefulWidget {
@@ -19,31 +20,48 @@ class MomChildCarePage extends StatefulWidget {
 
 class _MomChildCarePageState extends State<MomChildCarePage> {
   final PageController _quoteController = PageController();
+  final MomChildCareRepository _repository = MomChildCareRepository();
   Timer? _quoteTimer;
   int _quoteIndex = 0;
 
-  // আগের auto-slide টেক্সট অপরিবর্তিত
-  final List<String> _quotes = const [
-    'মায়ের স্বাস্থ্যই শিশুর সবচেয়ে বড় সম্পদ।',
-    'প্রথম ১০০০ দিন শিশুর ভবিষ্যৎ গড়ে দেয়।',
-    'সঠিক পুষ্টি মেধা ও শারীরিক বিকাশের চাবিকাঠি।',
-    'নিয়মিত ঘুম ও খেলা শিশুকে সুস্থ রাখে।',
-    'মা-শিশুর বন্ধন সবচেয়ে শক্তিশালী সম্পর্ক।',
-    'বিজ্ঞান বলে: মায়ের স্পর্শ শিশুর মস্তিষ্ক বিকশিত করে।',
-  ];
+  List<String> _dailyTips = List<String>.from(defaultMomChildDailyTips);
 
   @override
   void initState() {
     super.initState();
+    unawaited(_loadDailyTips());
     _quoteTimer = Timer.periodic(const Duration(seconds: 4), (_) {
-      if (!mounted || !_quoteController.hasClients) return;
-      final next = (_quoteIndex + 1) % _quotes.length;
+      if (!mounted || !_quoteController.hasClients || _dailyTips.isEmpty) {
+        return;
+      }
+      final next = (_quoteIndex + 1) % _dailyTips.length;
       _quoteController.animateToPage(
         next,
         duration: const Duration(milliseconds: 650),
         curve: Curves.easeInOut,
       );
     });
+  }
+
+  Future<void> _loadDailyTips() async {
+    final tips = await _repository.getDailyTips();
+    if (!mounted || tips.isEmpty || _sameTips(tips, _dailyTips)) return;
+
+    if (_quoteController.hasClients) {
+      _quoteController.jumpToPage(0);
+    }
+    setState(() {
+      _dailyTips = tips;
+      _quoteIndex = 0;
+    });
+  }
+
+  bool _sameTips(List<String> first, List<String> second) {
+    if (first.length != second.length) return false;
+    for (var index = 0; index < first.length; index++) {
+      if (first[index] != second[index]) return false;
+    }
+    return true;
   }
 
   @override
@@ -203,11 +221,30 @@ class _MomChildCarePageState extends State<MomChildCarePage> {
           ],
         ),
         const SizedBox(height: 20),
+        const Row(
+          children: [
+            Icon(
+              Icons.lightbulb_outline_rounded,
+              color: Colors.amberAccent,
+              size: 18,
+            ),
+            SizedBox(width: 7),
+            Text(
+              'প্রতিদিনের মা ও শিশু টিপস',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
         SizedBox(
           height: 92,
           child: PageView.builder(
             controller: _quoteController,
-            itemCount: _quotes.length,
+            itemCount: _dailyTips.length,
             onPageChanged: (i) => setState(() => _quoteIndex = i),
             itemBuilder: (_, i) => Container(
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
@@ -217,7 +254,7 @@ class _MomChildCarePageState extends State<MomChildCarePage> {
               ),
               child: Center(
                 child: Text(
-                  _quotes[i],
+                  _dailyTips[i],
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     color: Colors.white,
@@ -234,7 +271,7 @@ class _MomChildCarePageState extends State<MomChildCarePage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(
-            _quotes.length,
+            _dailyTips.length,
             (i) => AnimatedContainer(
               duration: const Duration(milliseconds: 220),
               width: _quoteIndex == i ? 18 : 6,
@@ -833,13 +870,43 @@ class _FirebaseContentPageState extends State<_FirebaseContentPage> {
 // 3. স্মার্ট টুলসমূহ
 // ================================================================
 
-class _SmartToolsPage extends StatelessWidget {
+class _SmartToolsPage extends StatefulWidget {
   const _SmartToolsPage();
 
   @override
+  State<_SmartToolsPage> createState() => _SmartToolsPageState();
+}
+
+class _SmartToolsPageState extends State<_SmartToolsPage> {
+  final MomChildCareRepository _repository = MomChildCareRepository();
+  Map<String, Map<String, dynamic>> _contentById = const {};
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadToolContent());
+  }
+
+  Future<void> _loadToolContent() async {
+    final sections = await _repository.getSmartToolSections();
+    if (!mounted || sections.isEmpty) return;
+
+    final contentById = <String, Map<String, dynamic>>{};
+    for (final section in sections) {
+      final id = section['id'];
+      if (id is String && id.isNotEmpty) contentById[id] = section;
+    }
+
+    setState(() {
+      _contentById = contentById;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final tools = [
+    final defaultTools = [
       _Tool(
+        'vaccination_schedule',
         'টিকাদান সময়সূচি',
         'টিকার তালিকা ও সম্পন্ন অবস্থা',
         Icons.vaccines_rounded,
@@ -847,6 +914,7 @@ class _SmartToolsPage extends StatelessWidget {
         const _VaccinationPage(),
       ),
       _Tool(
+        'growth_tracking',
         'বৃদ্ধি পর্যবেক্ষণ',
         'ওজন ও উচ্চতার ইতিহাস',
         Icons.monitor_weight_rounded,
@@ -854,6 +922,7 @@ class _SmartToolsPage extends StatelessWidget {
         const _GrowthPage(),
       ),
       _Tool(
+        'development_milestones',
         'বিকাশের মাইলফলক',
         'বয়স অনুযায়ী দক্ষতা যাচাই',
         Icons.psychology_alt_rounded,
@@ -861,6 +930,7 @@ class _SmartToolsPage extends StatelessWidget {
         const _MilestonePage(),
       ),
       _Tool(
+        'nutrition_plan',
         'পুষ্টি ও খাবার পরিকল্পনা',
         'বয়স অনুযায়ী খাবারের পরিকল্পনা',
         Icons.restaurant_menu_rounded,
@@ -868,6 +938,7 @@ class _SmartToolsPage extends StatelessWidget {
         const _NutritionPage(),
       ),
       _Tool(
+        'medicine_reminder',
         'ওষুধ স্মরণ',
         'চিকিৎসকের দেওয়া ওষুধের সময়',
         Icons.medication_rounded,
@@ -875,6 +946,7 @@ class _SmartToolsPage extends StatelessWidget {
         const _MedicinePage(),
       ),
       _Tool(
+        'health_record',
         'শিশু স্বাস্থ্য রেকর্ড',
         'অ্যালার্জি ও স্বাস্থ্য ইতিহাস',
         Icons.folder_shared_rounded,
@@ -882,6 +954,9 @@ class _SmartToolsPage extends StatelessWidget {
         const _HealthRecordPage(),
       ),
     ];
+    final tools = defaultTools
+        .map((tool) => tool.withContent(_contentById[tool.id]))
+        .toList(growable: false);
 
     return Scaffold(
       backgroundColor: AppColors.darkBackground,
@@ -960,13 +1035,36 @@ class _SmartToolsPage extends StatelessWidget {
 }
 
 class _Tool {
+  final String id;
   final String title;
   final String subtitle;
   final IconData icon;
   final Color color;
   final Widget page;
 
-  const _Tool(this.title, this.subtitle, this.icon, this.color, this.page);
+  const _Tool(
+    this.id,
+    this.title,
+    this.subtitle,
+    this.icon,
+    this.color,
+    this.page,
+  );
+
+  _Tool withContent(Map<String, dynamic>? content) {
+    if (content == null) return this;
+
+    final cloudTitle = content['title']?.toString().trim() ?? '';
+    final cloudDescription = content['description']?.toString().trim() ?? '';
+    return _Tool(
+      id,
+      cloudTitle.isEmpty ? title : cloudTitle,
+      cloudDescription.isEmpty ? subtitle : cloudDescription,
+      icon,
+      color,
+      page,
+    );
+  }
 }
 
 // -------------------- টিকাদান --------------------

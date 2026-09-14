@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../features/mom_child_care/data/mom_child_content_validator.dart';
-import '../../utils/seed_mom_child_care.dart';
+import '../../utils/mom_child_content_catalog.dart';
 
 enum MomChildCloudStatus { checking, current, missing, invalid, unavailable }
 
@@ -25,7 +25,7 @@ class MomChildCareRepository {
   final FirebaseFirestore _firestore;
 
   static final Map<String, Map<String, dynamic>> _bundledDocuments = {
-    for (final document in buildMomChildCareSeedDocuments())
+    for (final document in buildMomChildCarePublishedDocuments())
       document['id']! as String: document['data']! as Map<String, dynamic>,
   };
 
@@ -144,7 +144,11 @@ class MomChildCareRepository {
   // Smart tools
   Future<List<Map<String, dynamic>>> getMilestones() async {
     final data = await getContentDocument('smart_tools');
-    return _toMapList(data['milestones']);
+    final cloudItems = _toMapList(data['milestones']);
+    if (cloudItems.isNotEmpty) return cloudItems;
+
+    final bundled = getBundledDocument('smart_tools');
+    return _toMapList(bundled['milestones']);
   }
 
   Future<List<Map<String, dynamic>>> getVaccinationSchedule() async {
@@ -152,16 +156,22 @@ class MomChildCareRepository {
     return _toMapList(data['vaccinationSchedule']);
   }
 
-  Future<List<Map<String, dynamic>>> getFeatures() async {
+  Future<List<Map<String, dynamic>>> getSmartToolSections() async {
     final data = await getContentDocument('smart_tools');
-    return _toMapList(data['sections']);
+    final cloudSections = _toMapList(data['sections']);
+    if (cloudSections.isNotEmpty) return cloudSections;
+
+    final bundled = getBundledDocument('smart_tools');
+    return _toMapList(bundled['sections']);
   }
 
   Future<List<String>> getDailyTips() async {
     final data = await getContentDocument('smart_tools');
-    final raw = data['dailyTips'];
-    final list = raw is List ? raw : const [];
-    return list.map((e) => e.toString()).toList();
+    final cloudTips = _toStringList(data['dailyTips']);
+    if (cloudTips.isNotEmpty) return cloudTips;
+
+    final bundled = getBundledDocument('smart_tools');
+    return _toStringList(bundled['dailyTips']);
   }
 
   List<Map<String, dynamic>> _toMapList(dynamic value) {
@@ -171,5 +181,15 @@ class MomChildCareRepository {
         .whereType<Map>()
         .map((e) => Map<String, dynamic>.from(e))
         .toList();
+  }
+
+  List<String> _toStringList(dynamic value) {
+    if (value is! List) return const [];
+
+    return value
+        .whereType<String>()
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
   }
 }

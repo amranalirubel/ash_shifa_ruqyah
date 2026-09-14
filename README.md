@@ -91,6 +91,25 @@ an issue, pull request, log, or chat. Run with `dry_run: true` first; after the
 preview succeeds, rerun with `dry_run: false`. Keep `force_refresh: false` for
 the normal repair so already-valid documents remain untouched.
 
+The workflow also consolidates three documents left by the original prototype:
+`mom_child_care/daily_tips`, `mom_child_care/features`, and
+`mom_child_care/milestones`. Daily tips and milestone groups are copied into
+the canonical `mom_child_care/smart_tools` document only when the corresponding
+canonical field is empty. The `features` document is not used for navigation;
+routes, icons, and tool behavior remain versioned app code, while the canonical
+tool labels live in `smart_tools.sections`.
+
+Before touching a legacy document, the workflow copies its complete previous
+value to `content_seed_backups`. It then keeps the source document and marks it
+`deprecated` with its migration target. No document or field is deleted, and a
+later run does not create duplicate migrations. Once the migration has run,
+the app reads only these fields:
+
+- `smart_tools.dailyTips` — the Mom & Child Care home carousel
+- `smart_tools.milestones` — the developmental milestone checklist
+- `smart_tools.sections` — the six Smart Tools labels/descriptions
+- `smart_tools.vaccinationSchedule` — reviewed country-specific vaccine data
+
 ## Data architecture
 
 - Firebase Auth: identity/session
