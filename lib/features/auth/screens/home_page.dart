@@ -33,9 +33,7 @@ class HomePage extends StatelessWidget {
         ? const Color(0xFF070B12)
         : const Color(0xFFF4F7F5);
     final primaryText = isDarkMode ? Colors.white : const Color(0xFF111827);
-    final secondaryText = isDarkMode
-        ? Colors.white60
-        : const Color(0xFF5B6472);
+    final secondaryText = isDarkMode ? Colors.white60 : const Color(0xFF5B6472);
 
     return Scaffold(
       backgroundColor: background,
@@ -136,19 +134,16 @@ class HomePage extends StatelessWidget {
                           crossAxisSpacing: 12,
                           mainAxisExtent: useSingleColumn ? 138 : 170,
                         ),
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            final feature = features[index];
-                            return _FeatureCard(
-                              feature: feature,
-                              isDarkMode: isDarkMode,
-                              onTap: () => Navigator.of(context).push(
-                                MaterialPageRoute(builder: feature.builder),
-                              ),
-                            );
-                          },
-                          childCount: features.length,
-                        ),
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          final feature = features[index];
+                          return _FeatureCard(
+                            feature: feature,
+                            isDarkMode: isDarkMode,
+                            onTap: () => Navigator.of(
+                              context,
+                            ).push(MaterialPageRoute(builder: feature.builder)),
+                          );
+                        }, childCount: features.length),
                       ),
                     ),
                     SliverPadding(
@@ -293,9 +288,7 @@ class _HomeHeader extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         _HeaderActionButton(
-          icon: isSignedIn
-              ? Icons.person_outline_rounded
-              : Icons.login_rounded,
+          icon: isSignedIn ? Icons.person_outline_rounded : Icons.login_rounded,
           tooltip: isSignedIn ? 'প্রোফাইল' : 'Login',
           accent: const Color(0xFF35D399),
           isDarkMode: isDarkMode,
@@ -390,7 +383,11 @@ class _InspirationCard extends StatelessWidget {
         children: [
           const Row(
             children: [
-              Icon(Icons.auto_awesome_rounded, color: Color(0xFFFFB020), size: 18),
+              Icon(
+                Icons.auto_awesome_rounded,
+                color: Color(0xFFFFB020),
+                size: 18,
+              ),
               SizedBox(width: 8),
               Text(
                 'আজকের আয়াত',
