@@ -24,9 +24,8 @@ class _ExercisePageState extends State<ExercisePage> {
     return _repository.movementGuides.where((guide) {
       final matchesCategory =
           _selectedCategory == null || guide.category == _selectedCategory;
-      final haystack =
-          '${guide.title} ${guide.summary} ${guide.category.label}'
-              .toLowerCase();
+      final haystack = '${guide.title} ${guide.summary} ${guide.category.label}'
+          .toLowerCase();
       return matchesCategory && (query.isEmpty || haystack.contains(query));
     }).toList();
   }
