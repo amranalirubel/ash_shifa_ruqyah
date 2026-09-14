@@ -2,7 +2,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../data/user_profile_repository.dart';
-import 'home_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -18,6 +17,7 @@ class _LoginPageState extends State<LoginPage> {
   final _profiles = UserProfileRepository();
 
   bool _isSubmitting = false;
+  bool _isSendingReset = false;
   bool _obscurePassword = true;
 
   @override
@@ -63,12 +63,7 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       if (mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(
-            builder: (_) => HomePage(isDarkMode: false, toggleTheme: () {}),
-          ),
-          (route) => false,
-        );
+        Navigator.of(context).popUntil((route) => route.isFirst);
       }
     } on FirebaseAuthException catch (e) {
       if (mounted) {
@@ -78,6 +73,50 @@ class _LoginPageState extends State<LoginPage> {
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  Future<void> _sendPasswordReset() async {
+    if (_isSendingReset) return;
+
+    final email = _emailController.text.trim();
+    if (email.isEmpty || !email.contains('@') || !email.contains('.')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('আগে সঠিক ইমেইল ঠিকানা লিখুন।')),
+      );
+      return;
+    }
+
+    setState(() => _isSendingReset = true);
+
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'পাসওয়ার্ড রিসেট লিংক পাঠানো হয়েছে। Inbox ও Spam দেখুন।',
+            ),
+          ),
+        );
+      }
+    } on FirebaseAuthException catch (error) {
+      if (!mounted) return;
+
+      final message = switch (error.code) {
+        'invalid-email' => 'সঠিক ইমেইল ঠিকানা লিখুন।',
+        'too-many-requests' =>
+          'অনেকবার চেষ্টা হয়েছে। কিছুক্ষণ পরে চেষ্টা করুন।',
+        'network-request-failed' => 'ইন্টারনেট সংযোগ পরীক্ষা করুন।',
+        'user-not-found' =>
+          'অ্যাকাউন্ট থাকলে রিসেট লিংক পাঠানো হবে। Inbox ও Spam দেখুন।',
+        _ => 'রিসেট লিংক পাঠানো যায়নি। আবার চেষ্টা করুন।',
+      };
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } finally {
+      if (mounted) setState(() => _isSendingReset = false);
     }
   }
 
@@ -153,7 +192,19 @@ class _LoginPageState extends State<LoginPage> {
                         ? 'পাসওয়ার্ড লিখুন।'
                         : null,
                   ),
-                  const SizedBox(height: 30),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: _isSendingReset ? null : _sendPasswordReset,
+                      child: _isSendingReset
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('পাসওয়ার্ড ভুলে গেছেন?'),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       minimumSize: const Size(double.infinity, 50),

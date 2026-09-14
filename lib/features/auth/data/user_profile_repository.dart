@@ -45,4 +45,25 @@ class UserProfileRepository {
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
+
+  Future<void> updateName({required User user, required String name}) async {
+    final trimmedName = name.trim();
+    if (trimmedName.length < 2 || trimmedName.length > 120) {
+      throw ArgumentError.value(
+        name,
+        'name',
+        'Name must contain between 2 and 120 characters.',
+      );
+    }
+
+    await user.updateDisplayName(trimmedName);
+    await _firestore.collection('users').doc(user.uid).set({
+      'uid': user.uid,
+      'name': trimmedName,
+      'email': user.email,
+      'phoneNumber': user.phoneNumber,
+      'photoUrl': user.photoURL,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
 }

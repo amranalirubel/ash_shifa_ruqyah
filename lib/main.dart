@@ -9,6 +9,7 @@ import 'package:screen_security/screen_security.dart';
 import 'firebase_options.dart';
 import 'core/app_colors.dart';
 import 'core/utils/seed_firestore.dart';
+import 'features/auth/screens/home_page.dart';
 import 'features/auth/screens/welcome_page.dart';
 import 'utils/seed_mom_child_care_firestore.dart';
 
@@ -126,7 +127,23 @@ class _AuthGate extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return WelcomePage(isDarkMode: isDarkMode, toggleTheme: toggleTheme);
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            backgroundColor: AppColors.darkBackground,
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.data != null) {
+          return HomePage(isDarkMode: isDarkMode, toggleTheme: toggleTheme);
+        }
+
+        return WelcomePage(isDarkMode: isDarkMode, toggleTheme: toggleTheme);
+      },
+    );
   }
 }
 

@@ -8,7 +8,9 @@ import 'package:ash_shifa_ruqyah/features/health_tips/screens/health_home_page.d
 import 'package:ash_shifa_ruqyah/features/ruqyah/screens/ruqyah_page.dart';
 import 'package:ash_shifa_ruqyah/features/mom_child_care/screens/mom_child_care_page.dart';
 import 'package:ash_shifa_ruqyah/features/bazzer_reminder/screens/bazzer_reminder_page.dart'; // পাথ চেক করুন
-import 'package:ash_shifa_ruqyah/features/easy_home/screens/easy_home_page.dart'; // পাথ চেক করুন
+import 'package:ash_shifa_ruqyah/features/easy_home/screens/easy_home_page.dart';
+
+import 'profile_page.dart';
 
 class HomePage extends StatelessWidget {
   final bool isDarkMode;
@@ -22,6 +24,8 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
     return Theme(
       data: Theme.of(context).copyWith(
         splashColor: Colors.transparent,
@@ -42,16 +46,17 @@ class HomePage extends StatelessWidget {
               tooltip: isDarkMode ? 'Light mode' : 'Dark mode',
               onPressed: toggleTheme,
             ),
-            if (FirebaseAuth.instance.currentUser != null)
+            if (user != null)
+              IconButton(
+                icon: const Icon(Icons.account_circle_outlined),
+                tooltip: 'প্রোফাইল',
+                onPressed: () => _navigateTo(context, const ProfilePage()),
+              ),
+            if (user != null)
               IconButton(
                 icon: const Icon(Icons.logout_rounded),
                 tooltip: 'Logout',
-                onPressed: () async {
-                  await FirebaseAuth.instance.signOut();
-                  if (context.mounted) {
-                    Navigator.of(context).popUntil((route) => route.isFirst);
-                  }
-                },
+                onPressed: () => _confirmLogout(context),
               ),
           ],
         ),
@@ -118,6 +123,38 @@ class HomePage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _confirmLogout(BuildContext context) async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Logout করবেন?'),
+        content: const Text('এই ডিভাইসে আপনার বর্তমান session বন্ধ হবে।'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('বাতিল'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldLogout != true) return;
+
+    try {
+      await FirebaseAuth.instance.signOut();
+    } on FirebaseAuthException {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Logout করা যায়নি। আবার চেষ্টা করুন।')),
+        );
+      }
+    }
   }
 
   // নেভিগেশন হেল্পার
