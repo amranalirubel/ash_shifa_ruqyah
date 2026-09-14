@@ -385,7 +385,9 @@ class _InspirationCard extends StatelessWidget {
         color: surface,
         borderRadius: BorderRadius.circular(23),
         border: Border.all(
-          color: palette.gold.withValues(alpha: palette.isDarkMode ? 0.46 : 0.58),
+          color: palette.gold.withValues(
+            alpha: palette.isDarkMode ? 0.46 : 0.58,
+          ),
         ),
         boxShadow: [
           BoxShadow(

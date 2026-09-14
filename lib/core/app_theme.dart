@@ -5,21 +5,22 @@ class AppTheme {
   static const Color _darkBackground = Color(0xFF07111F);
 
   static ThemeData get light {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFF087A57),
-      brightness: Brightness.light,
-    ).copyWith(
-      primary: const Color(0xFF087A57),
-      onPrimary: Colors.white,
-      secondary: const Color(0xFF996300),
-      onSecondary: Colors.white,
-      surface: Colors.white,
-      onSurface: const Color(0xFF10211B),
-      onSurfaceVariant: const Color(0xFF40554D),
-      outline: const Color(0xFFB7C8C1),
-      error: const Color(0xFFB42318),
-      onError: Colors.white,
-    );
+    final scheme =
+        ColorScheme.fromSeed(
+          seedColor: const Color(0xFF087A57),
+          brightness: Brightness.light,
+        ).copyWith(
+          primary: const Color(0xFF087A57),
+          onPrimary: Colors.white,
+          secondary: const Color(0xFF996300),
+          onSecondary: Colors.white,
+          surface: Colors.white,
+          onSurface: const Color(0xFF10211B),
+          onSurfaceVariant: const Color(0xFF40554D),
+          outline: const Color(0xFFB7C8C1),
+          error: const Color(0xFFB42318),
+          onError: Colors.white,
+        );
 
     return _build(
       brightness: Brightness.light,
@@ -32,21 +33,22 @@ class AppTheme {
   }
 
   static ThemeData get dark {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFF35D399),
-      brightness: Brightness.dark,
-    ).copyWith(
-      primary: const Color(0xFF55E0AC),
-      onPrimary: const Color(0xFF003824),
-      secondary: const Color(0xFFF6C453),
-      onSecondary: const Color(0xFF3A2700),
-      surface: const Color(0xFF0E1A2B),
-      onSurface: const Color(0xFFF8FAFC),
-      onSurfaceVariant: const Color(0xFFC2CFDD),
-      outline: const Color(0xFF42546B),
-      error: const Color(0xFFFF8A8A),
-      onError: const Color(0xFF490006),
-    );
+    final scheme =
+        ColorScheme.fromSeed(
+          seedColor: const Color(0xFF35D399),
+          brightness: Brightness.dark,
+        ).copyWith(
+          primary: const Color(0xFF55E0AC),
+          onPrimary: const Color(0xFF003824),
+          secondary: const Color(0xFFF6C453),
+          onSecondary: const Color(0xFF3A2700),
+          surface: const Color(0xFF0E1A2B),
+          onSurface: const Color(0xFFF8FAFC),
+          onSurfaceVariant: const Color(0xFFC2CFDD),
+          outline: const Color(0xFF42546B),
+          error: const Color(0xFFFF8A8A),
+          onError: const Color(0xFF490006),
+        );
 
     return _build(
       brightness: Brightness.dark,
@@ -160,9 +162,7 @@ class AppTheme {
           color: Colors.white,
           fontWeight: FontWeight.w600,
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     );
   }

@@ -84,7 +84,9 @@ class _ProfilePageState extends State<ProfilePage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Verification email পাঠানো হয়েছে। Inbox ও Spam দেখুন।'),
+            content: Text(
+              'Verification email পাঠানো হয়েছে। Inbox ও Spam দেখুন।',
+            ),
           ),
         );
       }
@@ -142,10 +144,7 @@ class _ProfilePageState extends State<ProfilePage> {
     final phone = user.phoneNumber?.trim();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('প্রোফাইল'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('প্রোফাইল'), centerTitle: true),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(18, 10, 18, 28),
         children: [
@@ -197,9 +196,7 @@ class _ProfilePageState extends State<ProfilePage> {
           if (!user.emailVerified) ...[
             const SizedBox(height: 10),
             OutlinedButton.icon(
-              onPressed: _isSendingVerification
-                  ? null
-                  : _sendVerificationEmail,
+              onPressed: _isSendingVerification ? null : _sendVerificationEmail,
               icon: _isSendingVerification
                   ? const SizedBox.square(
                       dimension: 18,
