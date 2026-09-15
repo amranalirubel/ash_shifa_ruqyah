@@ -23,108 +23,10 @@ class _VoiceReviewSheetState extends State<VoiceReviewSheet> {
 
   Future<void> _edit(int index) async {
     final item = _items[index];
-    final name = TextEditingController(text: item.name);
-    final quantity = TextEditingController(
-      text: item.quantity % 1 == 0
-          ? item.quantity.toInt().toString()
-          : item.quantity.toString(),
-    );
-    String category = item.category;
-    String unit = item.unit;
     final edited = await showDialog<BazzerItem>(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => AlertDialog(
-          title: const Text('শোনা জিনিসটি ঠিক করুন'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: name,
-                  maxLength: 120,
-                  decoration: const InputDecoration(labelText: 'জিনিসের নাম'),
-                ),
-                TextField(
-                  controller: quantity,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(labelText: 'পরিমাণ'),
-                ),
-                DropdownButtonFormField<String>(
-                  initialValue: unit,
-                  decoration: const InputDecoration(labelText: 'একক'),
-                  items: [
-                    for (final value in [
-                      'টা',
-                      'কেজি',
-                      'গ্রাম',
-                      'লিটার',
-                      'মিলি',
-                      'আঁটি',
-                      'প্যাকেট',
-                      'বোতল',
-                      'হালি',
-                      'ডজন',
-                    ])
-                      DropdownMenuItem(value: value, child: Text(value)),
-                  ],
-                  onChanged: (value) =>
-                      setDialogState(() => unit = value ?? unit),
-                ),
-                DropdownButtonFormField<String>(
-                  initialValue: category,
-                  decoration: const InputDecoration(labelText: 'দোকান'),
-                  items: [
-                    for (final value in StoreCategory.all)
-                      DropdownMenuItem(value: value, child: Text(value)),
-                  ],
-                  onChanged: (value) =>
-                      setDialogState(() => category = value ?? category),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('বাতিল'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final parsedQuantity = double.tryParse(
-                  VoiceParser.normalizeNumbers(quantity.text.trim()),
-                );
-                if (name.text.trim().isEmpty ||
-                    parsedQuantity == null ||
-                    parsedQuantity <= 0 ||
-                    parsedQuantity > 1000 ||
-                    (unit == 'টা' && parsedQuantity % 1 != 0)) {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(
-                    const SnackBar(content: Text('সঠিক নাম ও পরিমাণ দিন।')),
-                  );
-                  return;
-                }
-                Navigator.of(dialogContext).pop(
-                  BazzerItem(
-                    id: item.id,
-                    name: name.text.trim(),
-                    quantity: parsedQuantity,
-                    unit: unit,
-                    category: category,
-                    createdAt: item.createdAt,
-                  ),
-                );
-              },
-              child: const Text('ঠিক আছে'),
-            ),
-          ],
-        ),
-      ),
+      builder: (_) => _VoiceEditDialog(item: item),
     );
-    name.dispose();
-    quantity.dispose();
     if (edited != null && mounted) setState(() => _items[index] = edited);
   }
 
@@ -222,4 +124,121 @@ class _VoiceReviewSheetState extends State<VoiceReviewSheet> {
       ),
     );
   }
+}
+
+/// The dialog owns its controllers until its route is removed. Disposing them
+/// as soon as Navigator.pop resolves can crash during the exit animation.
+class _VoiceEditDialog extends StatefulWidget {
+  const _VoiceEditDialog({required this.item});
+
+  final BazzerItem item;
+
+  @override
+  State<_VoiceEditDialog> createState() => _VoiceEditDialogState();
+}
+
+class _VoiceEditDialogState extends State<_VoiceEditDialog> {
+  late final TextEditingController _name = TextEditingController(
+    text: widget.item.name,
+  );
+  late final TextEditingController _quantity = TextEditingController(
+    text: widget.item.quantity % 1 == 0
+        ? widget.item.quantity.toInt().toString()
+        : widget.item.quantity.toString(),
+  );
+  late String _category = widget.item.category;
+  late String _unit = widget.item.unit;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _quantity.dispose();
+    super.dispose();
+  }
+
+  void _confirm() {
+    final parsedQuantity = double.tryParse(
+      VoiceParser.normalizeNumbers(_quantity.text.trim()),
+    );
+    if (_name.text.trim().isEmpty ||
+        _name.text.trim().length > 120 ||
+        parsedQuantity == null ||
+        parsedQuantity <= 0 ||
+        parsedQuantity > 1000 ||
+        (_unit == 'টা' && parsedQuantity % 1 != 0)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('সঠিক নাম ও পরিমাণ দিন।')));
+      return;
+    }
+    Navigator.of(context).pop(
+      BazzerItem(
+        id: widget.item.id,
+        name: _name.text.trim(),
+        quantity: parsedQuantity,
+        unit: _unit,
+        category: _category,
+        createdAt: widget.item.createdAt,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('শোনা জিনিসটি ঠিক করুন'),
+    content: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _name,
+            maxLength: 120,
+            decoration: const InputDecoration(labelText: 'জিনিসের নাম'),
+          ),
+          TextField(
+            controller: _quantity,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(labelText: 'পরিমাণ'),
+          ),
+          DropdownButtonFormField<String>(
+            initialValue: _unit,
+            decoration: const InputDecoration(labelText: 'একক'),
+            items: [
+              for (final value in [
+                'টা',
+                'কেজি',
+                'গ্রাম',
+                'লিটার',
+                'মিলি',
+                'আঁটি',
+                'প্যাকেট',
+                'বোতল',
+                'হালি',
+                'ডজন',
+              ])
+                DropdownMenuItem(value: value, child: Text(value)),
+            ],
+            onChanged: (value) => setState(() => _unit = value ?? _unit),
+          ),
+          DropdownButtonFormField<String>(
+            initialValue: _category,
+            decoration: const InputDecoration(labelText: 'দোকান'),
+            items: [
+              for (final value in StoreCategory.all)
+                DropdownMenuItem(value: value, child: Text(value)),
+            ],
+            onChanged: (value) =>
+                setState(() => _category = value ?? _category),
+          ),
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: const Text('বাতিল'),
+      ),
+      FilledButton(onPressed: _confirm, child: const Text('ঠিক আছে')),
+    ],
+  );
 }
