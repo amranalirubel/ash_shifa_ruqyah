@@ -1,23 +1,82 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-class BmiResult {
+import '../widgets/health_source_sheet.dart';
+
+enum AdultBmiCategory {
+  underweight,
+  healthyWeight,
+  overweight,
+  obesityClass1,
+  obesityClass2,
+  obesityClass3,
+}
+
+extension AdultBmiCategoryText on AdultBmiCategory {
+  String get label => switch (this) {
+    AdultBmiCategory.underweight => 'কম ওজনের range',
+    AdultBmiCategory.healthyWeight => 'Healthy-weight range',
+    AdultBmiCategory.overweight => 'Overweight range',
+    AdultBmiCategory.obesityClass1 => 'Obesity class 1 range',
+    AdultBmiCategory.obesityClass2 => 'Obesity class 2 range',
+    AdultBmiCategory.obesityClass3 => 'Obesity class 3 range',
+  };
+
+  String get guidance => switch (this) {
+    AdultBmiCategory.underweight =>
+      'কম BMI-এর কারণ ও পুষ্টির প্রয়োজন বুঝতে healthcare professional-এর সঙ্গে কথা বলুন।',
+    AdultBmiCategory.healthyWeight =>
+      'BMI একটি screening measure মাত্র; ঘুম, activity, diet, blood pressure ও অন্যান্য বিষয়ও গুরুত্বপূর্ণ।',
+    AdultBmiCategory.overweight =>
+      'BMI-এর পাশাপাশি waist, medical history ও laboratory result বিবেচনায় clinician ঝুঁকি মূল্যায়ন করেন।',
+    AdultBmiCategory.obesityClass1 ||
+    AdultBmiCategory.obesityClass2 ||
+    AdultBmiCategory.obesityClass3 =>
+      'Stigma নয়—person-first care গুরুত্বপূর্ণ। নিরাপদ ও ব্যক্তিগত পরিকল্পনার জন্য qualified clinician-এর সহায়তা নিন।',
+  };
+}
+
+class AdultBmiResult {
+  const AdultBmiResult({required this.score, required this.category});
+
   final double score;
-  final String category;
-  final String message;
-  final String food;
-  final String exercise;
-  final String adjustment;
-  final Color color;
+  final AdultBmiCategory category;
+}
 
-  BmiResult({
-    required this.score,
-    required this.category,
-    required this.message,
-    required this.food,
-    required this.exercise,
-    required this.adjustment,
-    required this.color,
-  });
+AdultBmiResult calculateAdultBmi({
+  required int age,
+  required double heightMeters,
+  required double weightKg,
+}) {
+  if (age < 20 || age > 120) {
+    throw ArgumentError.value(age, 'age', 'Adult BMI requires age 20–120.');
+  }
+  if (!heightMeters.isFinite || heightMeters < 1.2 || heightMeters > 2.5) {
+    throw ArgumentError.value(
+      heightMeters,
+      'heightMeters',
+      'Height must be between 1.2 and 2.5 metres.',
+    );
+  }
+  if (!weightKg.isFinite || weightKg < 25 || weightKg > 350) {
+    throw ArgumentError.value(
+      weightKg,
+      'weightKg',
+      'Weight must be between 25 and 350 kg.',
+    );
+  }
+
+  final score = weightKg / (heightMeters * heightMeters);
+  final category = switch (score) {
+    < 18.5 => AdultBmiCategory.underweight,
+    < 25 => AdultBmiCategory.healthyWeight,
+    < 30 => AdultBmiCategory.overweight,
+    < 35 => AdultBmiCategory.obesityClass1,
+    < 40 => AdultBmiCategory.obesityClass2,
+    _ => AdultBmiCategory.obesityClass3,
+  };
+
+  return AdultBmiResult(score: score, category: category);
 }
 
 class BmiCalculatorScreen extends StatefulWidget {
@@ -28,276 +87,391 @@ class BmiCalculatorScreen extends StatefulWidget {
 }
 
 class _BmiCalculatorScreenState extends State<BmiCalculatorScreen> {
-  static const Color bgColor = Color(0xFF0F1115);
-  static const Color cardColor = Color(0xFF1C1F26);
-  static const Color accentColor = Color(0xFF00E676);
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TextEditingController _ageController = TextEditingController(
+    text: '25',
+  );
+  final TextEditingController _feetController = TextEditingController(
+    text: '5',
+  );
+  final TextEditingController _inchController = TextEditingController(
+    text: '6',
+  );
+  final TextEditingController _weightController = TextEditingController(
+    text: '65',
+  );
 
-  String selectedGender = "male";
-  final ageCtrl = TextEditingController(text: "25");
-  final feetCtrl = TextEditingController(text: "5");
-  final inchCtrl = TextEditingController(text: "10");
-  final weightCtrl = TextEditingController(text: "72");
-
-  BmiResult? result;
+  AdultBmiResult? _result;
 
   @override
   void dispose() {
-    ageCtrl.dispose();
-    feetCtrl.dispose();
-    inchCtrl.dispose();
-    weightCtrl.dispose();
+    _ageController.dispose();
+    _feetController.dispose();
+    _inchController.dispose();
+    _weightController.dispose();
     super.dispose();
   }
 
-  void _calculate() {
-    final double? f = double.tryParse(feetCtrl.text);
-    final double? i = double.tryParse(inchCtrl.text);
-    final double? w = double.tryParse(weightCtrl.text);
-    final int? a = int.tryParse(ageCtrl.text);
-
-    if (a == null || a < 2 || f == null || w == null) {
-      _showError("সব তথ্য সঠিকভাবে দিন");
-      return;
+  String? _wholeNumberValidator(
+    String? value, {
+    required int min,
+    required int max,
+    required String label,
+  }) {
+    final parsed = int.tryParse(value?.trim() ?? '');
+    if (parsed == null) return '$label সঠিকভাবে লিখুন';
+    if (parsed < min || parsed > max) {
+      return '$label $min–$max দিন';
     }
+    return null;
+  }
 
-    final double heightM = ((f * 30.48) + ((i ?? 0) * 2.54)) / 100;
-    final double bmiVal = w / (heightM * heightM);
-    final double minW = 18.5 * (heightM * heightM);
-    final double maxW = 24.9 * (heightM * heightM);
+  String? _decimalValidator(
+    String? value, {
+    required double min,
+    required double max,
+    required String label,
+  }) {
+    final parsed = double.tryParse(value?.trim() ?? '');
+    if (parsed == null || !parsed.isFinite) {
+      return '$label সঠিকভাবে লিখুন';
+    }
+    if (parsed < min || parsed > max) {
+      return '$label ${min.toStringAsFixed(0)}–${max.toStringAsFixed(0)} দিন';
+    }
+    return null;
+  }
+
+  void _calculate() {
+    if (!_formKey.currentState!.validate()) return;
+
+    final age = int.parse(_ageController.text.trim());
+    final feet = double.parse(_feetController.text.trim());
+    final inches = double.parse(_inchController.text.trim());
+    final weight = double.parse(_weightController.text.trim());
+    final heightMeters = ((feet * 30.48) + (inches * 2.54)) / 100;
 
     setState(() {
-      result = _getResultModel(bmiVal, w, minW, maxW);
+      _result = calculateAdultBmi(
+        age: age,
+        heightMeters: heightMeters,
+        weightKg: weight,
+      );
     });
-  }
-
-  BmiResult _getResultModel(
-    double bmi,
-    double currentW,
-    double minW,
-    double maxW,
-  ) {
-    if (bmi < 18.5) {
-      return BmiResult(
-        score: bmi,
-        category: "UNDERWEIGHT",
-        message: "🎯 ওজন বাড়ানো প্রয়োজন",
-        food: "• প্রোটিন ও কার্বোহাইড্রেট বাড়ান\n• বাদাম, ডিম ও দুধ খান",
-        exercise: "• স্ট্রেন্থ ট্রেনিং ও যোগব্যায়াম",
-        adjustment:
-            "আরও ${(minW - currentW).toStringAsFixed(1)} কেজি ওজন প্রয়োজন।",
-        color: Colors.lightBlueAccent,
-      );
-    } else if (bmi < 25) {
-      return BmiResult(
-        score: bmi,
-        category: "NORMAL",
-        message: "🎉 আপনি একদম ফিট আছেন!",
-        food: "• সুষম খাদ্য ও পর্যাপ্ত পানি",
-        exercise: "• নিয়মিত হাঁটা ও কার্ডিও",
-        adjustment: "আদর্শ ওজন সীমার মধ্যেই আছেন।",
-        color: accentColor,
-      );
-    } else {
-      return BmiResult(
-        score: bmi,
-        category: bmi < 30 ? "OVERWEIGHT" : "OBESE",
-        message: bmi < 30
-            ? "⚠️ ওজন নিয়ন্ত্রণ করুন"
-            : "🛑 স্বাস্থ্য ঝুঁকি রয়েছে",
-        food: "• চিনি ও ফাস্টফুড বর্জন করুন",
-        exercise: "• দৈনিক ৪০ মিনিট ব্যায়াম",
-        adjustment:
-            "${(currentW - maxW).toStringAsFixed(1)} কেজি ওজন কমানো প্রয়োজন।",
-        color: bmi < 30 ? Colors.orangeAccent : Colors.redAccent,
-      );
-    }
-  }
-
-  void _showError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: Colors.redAccent),
-    );
+    FocusScope.of(context).unfocus();
   }
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Scaffold(
-      backgroundColor: bgColor,
       appBar: AppBar(
-        title: const Text(
-          "BMI EXPERT",
-          style: TextStyle(letterSpacing: 1.5, fontWeight: FontWeight.w900),
-        ),
+        title: const Text('Adult BMI screening'),
         centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                _genderCard("male", Icons.male, "পুরুষ", Colors.blue),
-                const SizedBox(width: 16),
-                _genderCard("female", Icons.female, "মহিলা", Colors.pink),
-              ],
-            ),
-            const SizedBox(height: 24),
-            _buildInputSection(),
-            const SizedBox(height: 32),
-            _buildCalculateButton(),
-            if (result != null) ...[
-              const SizedBox(height: 32),
-              _buildResultCard(),
-              const SizedBox(height: 16),
-              _suggestionCard("🍎 ডায়েট টিপস", result!.food, result!.color),
-              const SizedBox(height: 12),
-              _suggestionCard("🏋️ ব্যায়াম", result!.exercise, result!.color),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ✅ No RadioListTile anymore → No deprecation
-
-  Widget _genderCard(String val, IconData icon, String label, Color color) {
-    bool isSelected = selectedGender == val;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => selectedGender = val),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          decoration: BoxDecoration(
-            color: isSelected ? color.withValues(alpha: 0.15) : cardColor,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: isSelected ? color : Colors.white.withValues(alpha: 0.05),
-              width: 2,
-            ),
-          ),
-          child: Column(
-            children: [
-              Icon(icon, color: isSelected ? color : Colors.white30, size: 32),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  color: isSelected ? Colors.white : Colors.white30,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInputSection() {
-    return Column(
-      children: [
-        _customField("আপনার বয়স", ageCtrl, Icons.calendar_today, "বছর"),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _customField("উচ্চতা", feetCtrl, Icons.height, "ফিট"),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _customField("ইঞ্চি", inchCtrl, Icons.straighten, "ইঞ্চি"),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        _customField("আপনার ওজন", weightCtrl, Icons.scale_outlined, "কেজি"),
-      ],
-    );
-  }
-
-  Widget _customField(
-    String label,
-    TextEditingController ctrl,
-    IconData icon,
-    String suffix,
-  ) {
-    return Container(
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-      ),
-      child: TextField(
-        controller: ctrl,
-        keyboardType: TextInputType.number,
-        style: const TextStyle(color: Colors.white),
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: Icon(icon, color: accentColor),
-          suffixText: suffix,
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.all(18),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCalculateButton() {
-    return ElevatedButton(
-      onPressed: _calculate,
-      style: ElevatedButton.styleFrom(
-        minimumSize: const Size(double.infinity, 55),
-        backgroundColor: accentColor,
-        foregroundColor: Colors.black,
-      ),
-      child: const Text("RESULT ➔"),
-    );
-  }
-
-  Widget _buildResultCard() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(
-          color: result!.color.withValues(alpha: 0.2),
-          width: 2,
-        ),
-      ),
-      child: Column(
+      body: ListView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(17, 8, 17, 30),
         children: [
-          Text(result!.category, style: TextStyle(color: result!.color)),
-          Text(
-            result!.score.toStringAsFixed(1),
-            style: TextStyle(fontSize: 50, color: result!.color),
+          const HealthSafetyNotice(
+            title: 'BMI diagnosis নয়',
+            message:
+                'এটি শুধু ২০ বছর বা তার বেশি বয়সী প্রাপ্তবয়স্কদের screening tool। শিশু-কিশোর, pregnancy, খুব muscular body বা বিশেষ medical condition-এ সরাসরি এই interpretation ব্যবহার করবেন না।',
           ),
-          Text(result!.message),
+          const SizedBox(height: 15),
+          Container(
+            padding: const EdgeInsets.all(17),
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: colors.outline.withValues(alpha: 0.55)),
+            ),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'আপনার তথ্য',
+                    style: TextStyle(
+                      color: colors.onSurface,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  _NumberField(
+                    controller: _ageController,
+                    label: 'বয়স',
+                    suffix: 'বছর',
+                    icon: Icons.calendar_today_outlined,
+                    validator: (value) => _wholeNumberValidator(
+                      value,
+                      min: 20,
+                      max: 120,
+                      label: 'বয়স',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _NumberField(
+                          controller: _feetController,
+                          label: 'উচ্চতা',
+                          suffix: 'ফুট',
+                          icon: Icons.height_rounded,
+                          validator: (value) => _wholeNumberValidator(
+                            value,
+                            min: 3,
+                            max: 8,
+                            label: 'ফুট',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _NumberField(
+                          controller: _inchController,
+                          label: 'ইঞ্চি',
+                          suffix: 'ইঞ্চি',
+                          icon: Icons.straighten_rounded,
+                          validator: (value) => _decimalValidator(
+                            value,
+                            min: 0,
+                            max: 11.9,
+                            label: 'ইঞ্চি',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _NumberField(
+                    controller: _weightController,
+                    label: 'ওজন',
+                    suffix: 'কেজি',
+                    icon: Icons.monitor_weight_outlined,
+                    validator: (value) => _decimalValidator(
+                      value,
+                      min: 25,
+                      max: 350,
+                      label: 'ওজন',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: _calculate,
+                    icon: const Icon(Icons.calculate_outlined),
+                    label: const Text('BMI হিসাব করুন'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 52),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_result != null) ...[
+            const SizedBox(height: 16),
+            _BmiResultCard(result: _result!),
+          ],
+          const SizedBox(height: 14),
+          const _BmiRangeCard(),
+          const SizedBox(height: 12),
+          const Center(child: HealthEvidenceButton(sourceIds: ['cdc_bmi'])),
+          const SizedBox(height: 8),
+          Text(
+            'শরীর নিয়ে নেতিবাচক ধারণা তৈরি নয়—BMI-কে অন্য health information-এর সঙ্গে বিবেচনা করুন।',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: colors.onSurfaceVariant,
+              fontSize: 11.5,
+              height: 1.4,
+            ),
+          ),
         ],
       ),
     );
   }
+}
 
-  Widget _suggestionCard(String title, String content, Color color) {
+class _NumberField extends StatelessWidget {
+  const _NumberField({
+    required this.controller,
+    required this.label,
+    required this.suffix,
+    required this.icon,
+    required this.validator,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final String suffix;
+  final IconData icon;
+  final FormFieldValidator<String> validator;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      controller: controller,
+      validator: validator,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon),
+        suffixText: suffix,
+      ),
+    );
+  }
+}
+
+class _BmiResultCard extends StatelessWidget {
+  const _BmiResultCard({required this.result});
+
+  final AdultBmiResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final accent = _categoryColor(context, result.category);
+
+    return Semantics(
+      liveRegion: true,
+      label: 'BMI ${result.score.toStringAsFixed(1)}. ${result.category.label}',
+      child: Container(
+        padding: const EdgeInsets.all(19),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [accent.withValues(alpha: 0.18), colors.surface],
+          ),
+          borderRadius: BorderRadius.circular(23),
+          border: Border.all(color: accent.withValues(alpha: 0.38)),
+        ),
+        child: Column(
+          children: [
+            Text(
+              'আপনার BMI',
+              style: TextStyle(
+                color: colors.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              result.score.toStringAsFixed(1),
+              style: TextStyle(
+                color: accent,
+                fontSize: 48,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            Text(
+              result.category.label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: colors.onSurface,
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              result.category.guidance,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: colors.onSurfaceVariant,
+                height: 1.45,
+                fontSize: 12.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BmiRangeCard extends StatelessWidget {
+  const _BmiRangeCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    const rows = <(String, String)>[
+      ('< 18.5', 'কম ওজনের range'),
+      ('18.5–24.9', 'Healthy-weight range'),
+      ('25.0–29.9', 'Overweight range'),
+      ('30.0–34.9', 'Obesity class 1'),
+      ('35.0–39.9', 'Obesity class 2'),
+      ('≥ 40.0', 'Obesity class 3'),
+    ];
+
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colors.outline.withValues(alpha: 0.52)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: TextStyle(color: color)),
-          const SizedBox(height: 8),
-          Text(content, style: const TextStyle(color: Colors.white70)),
+          Text(
+            'CDC adult BMI ranges',
+            style: TextStyle(
+              color: colors.onSurface,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 10),
+          ...rows.map(
+            (row) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 90,
+                    child: Text(
+                      row.$1,
+                      style: TextStyle(
+                        color: colors.primary,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      row.$2,
+                      style: TextStyle(color: colors.onSurfaceVariant),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
+}
+
+Color _categoryColor(BuildContext context, AdultBmiCategory category) {
+  final raw = switch (category) {
+    AdultBmiCategory.underweight => const Color(0xFF38BDF8),
+    AdultBmiCategory.healthyWeight => const Color(0xFF22C55E),
+    AdultBmiCategory.overweight => const Color(0xFFF59E0B),
+    AdultBmiCategory.obesityClass1 => const Color(0xFFFB923C),
+    AdultBmiCategory.obesityClass2 => const Color(0xFFF87171),
+    AdultBmiCategory.obesityClass3 => const Color(0xFFEF4444),
+  };
+
+  return Theme.of(context).brightness == Brightness.dark
+      ? raw
+      : Color.lerp(raw, Colors.black, 0.30)!;
 }

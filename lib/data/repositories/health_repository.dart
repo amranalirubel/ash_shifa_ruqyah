@@ -1,49 +1,69 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../features/health_tips/data/health_content_catalog.dart';
 
+/// Read-only gateway for clinically sensitive educational content.
+///
+/// The current catalogue is version-controlled and available offline. Existing
+/// Firestore documents are deliberately left untouched, but they are not used
+/// as trusted medical guidance until a reviewed publishing workflow exists.
 class HealthRepository {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  const HealthRepository();
 
-  // ১. রোগের নাম ও খাদ্যের তালিকা (Diseases + Food Map)
+  List<HealthBanner> get banners => HealthContentCatalog.banners;
+
+  List<DailyHealthTip> get dailyTips => HealthContentCatalog.dailyTips;
+
+  List<MovementGuide> get movementGuides => HealthContentCatalog.movementGuides;
+
+  List<DietGuide> get dietGuides => HealthContentCatalog.dietGuides;
+
+  Map<String, HealthSource> get sources => HealthContentCatalog.sources;
+
+  /// Compatibility adapter for older screens and external callers.
   Future<Map<String, Map<String, dynamic>>> getDiseaseFoodMap() async {
-    final snap = await _firestore
-        .collection('health_tips')
-        .doc('diseases')
-        .get();
-    // সিড ফাইলে 'data' কি (key) ব্যবহার করা হয়েছে
-    final data = snap.data()?['data'] as Map<String, dynamic>? ?? {};
-    return data.map(
-      (key, value) => MapEntry(key, Map<String, dynamic>.from(value)),
-    );
+    return {
+      for (final guide in dietGuides)
+        guide.title: {
+          'eat': guide.chooseMoreOften,
+          'avoid': guide.limitMoreOften,
+          'extra': guide.clinicalNote,
+          'sourceIds': guide.sourceIds,
+        },
+    };
   }
 
-  // ২. প্রতিদিনের স্বাস্থ্য টিপস (Daily Health Tips)
+  /// Compatibility adapter for older screens and external callers.
   Future<List<String>> getDailyHealthTips() async {
-    final snap = await _firestore
-        .collection('health_tips')
-        .doc('daily_tips')
-        .get();
-    // সিড ফাইলে consistency-র জন্য 'list' কি (key) ব্যবহার করা হয়েছে
-    final list = snap.data()?['list'] as List<dynamic>? ?? [];
-    return list.map((e) => e.toString()).toList();
+    return dailyTips.map((tip) => '${tip.title} — ${tip.details}').toList();
   }
 
-  // ৩. ব্যায়াম ও মেডিটেশনের তালিকা (Exercises)
+  /// Compatibility adapter that fixes the former title/name schema mismatch.
   Future<List<Map<String, String>>> getExercises() async {
-    final snap = await _firestore
-        .collection('health_tips')
-        .doc('exercises')
-        .get();
-    final list = snap.data()?['list'] as List<dynamic>? ?? [];
-    return list.map((e) => Map<String, String>.from(e)).toList();
+    return movementGuides
+        .map(
+          (guide) => {
+            'id': guide.id,
+            'name': guide.title,
+            'title': guide.title,
+            'time': guide.duration,
+            'benefit': guide.summary,
+            'description': guide.summary,
+            'category': guide.category.name,
+          },
+        )
+        .toList();
   }
 
-  // ৪. কুইক স্বাস্থ্য কার্ড (Quick Tips)
+  /// Compatibility adapter for the former quick-tips API.
   Future<List<Map<String, dynamic>>> getQuickTips() async {
-    final snap = await _firestore
-        .collection('health_tips')
-        .doc('quick_tips')
-        .get();
-    final list = snap.data()?['list'] as List<dynamic>? ?? [];
-    return list.map((e) => Map<String, dynamic>.from(e)).toList();
+    return banners
+        .map(
+          (banner) => {
+            'id': banner.id,
+            'title': banner.title,
+            'description': banner.body,
+            'sourceIds': banner.sourceIds,
+          },
+        )
+        .toList();
   }
 }
