@@ -121,10 +121,12 @@ class BazzerFamilyManagePage extends StatelessWidget {
     super.key,
     required this.family,
     required this.repository,
+    required this.currentUid,
   });
 
   final BazzerFamily family;
   final BazzerRepository repository;
+  final String currentUid;
 
   void _message(BuildContext context, String message) => ScaffoldMessenger.of(
     context,
@@ -188,6 +190,82 @@ class BazzerFamilyManagePage extends StatelessWidget {
       if (context.mounted) {
         _message(context, 'সদস্য পরিবর্তন করা যায়নি: $error');
       }
+    }
+  }
+
+  Future<void> _rename(BuildContext context, BazzerMember member) async {
+    var editedName = member.name;
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('সদস্যের নাম পরিবর্তন'),
+        content: TextFormField(
+          initialValue: member.name,
+          onChanged: (value) => editedName = value,
+          maxLength: 80,
+          decoration: const InputDecoration(labelText: 'সদস্যের নতুন নাম'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('বাতিল'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(editedName),
+            child: const Text('সংরক্ষণ করুন'),
+          ),
+        ],
+      ),
+    );
+    if (name == null || !context.mounted) return;
+    try {
+      await repository.renameMember(family.id, member.uid, name);
+      if (context.mounted) _message(context, 'সদস্যের নাম পরিবর্তন হয়েছে।');
+    } catch (error) {
+      if (context.mounted) _message(context, 'নাম পরিবর্তন করা যায়নি: $error');
+    }
+  }
+
+  Future<void> _setAdmin(BuildContext context, BazzerMember member) async {
+    if (!member.isAdmin) {
+      final approved = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('নতুন Admin করবেন?'),
+          content: Text('${member.name} অন্য সদস্য পরিচালনা, Secure তালিকা দেখা '
+              'ও বাজার সম্পন্ন করার অধিকার পাবেন।'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('বাতিল'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Admin করুন'),
+            ),
+          ],
+        ),
+      );
+      if (approved != true || !context.mounted) return;
+    }
+    try {
+      await repository.setMemberAdmin(family.id, member.uid, !member.isAdmin);
+      if (context.mounted) _message(context, 'Admin-এর অনুমতি পরিবর্তন হয়েছে।');
+    } catch (error) {
+      if (context.mounted) _message(context, 'Admin পরিবর্তন করা যায়নি: $error');
+    }
+  }
+
+  Future<void> _setSecure(BuildContext context, BazzerMember member) async {
+    try {
+      await repository.setMemberSecure(family.id, member.uid, !member.secure);
+      if (context.mounted) {
+        _message(context, member.secure
+            ? 'Normal করা হয়েছে; আগের Secure আইটেম গোপন থাকবে।'
+            : 'Secure করা হয়েছে; নতুন আইটেম অন্য সদস্যরা দেখবে না।');
+      }
+    } catch (error) {
+      if (context.mounted) _message(context, 'Secure পরিবর্তন করা যায়নি: $error');
     }
   }
 
@@ -270,8 +348,8 @@ class BazzerFamilyManagePage extends StatelessWidget {
                     children: [
                       const ListTile(
                         leading: Icon(Icons.admin_panel_settings_outlined),
-                        title: Text('মূল অ্যাকাউন্ট'),
-                        subtitle: Text('বাজার করা হয়েছে চিহ্নিত করতে পারে'),
+                        title: Text('মূল অ্যাকাউন্ট • Admin'),
+                        subtitle: Text('সদস্য ও বাজার পরিচালনার স্থায়ী অধিকার'),
                       ),
                       for (final member in members)
                         ListTile(
@@ -281,17 +359,45 @@ class BazzerFamilyManagePage extends StatelessWidget {
                                 : Icons.person_off_outlined,
                           ),
                           title: Text(member.name),
-                          subtitle: Text(
-                            member.active
-                                ? 'তালিকা দেখতে ও যোগ করতে পারে'
-                                : 'বাদ দেওয়া হয়েছে • আগের তথ্য রাখা আছে',
-                          ),
-                          trailing: TextButton(
-                            onPressed: () =>
-                                _setActive(context, member, !member.active),
-                            child: Text(
-                              member.active ? 'বাদ দিন' : 'ফিরিয়ে নিন',
-                            ),
+                          subtitle: Text([
+                            if (member.isAdmin) 'Admin',
+                            member.secure ? 'Secure' : 'Normal',
+                            member.active ? 'যুক্ত আছেন' : 'বাদ দেওয়া হয়েছে',
+                          ].join(' • ')),
+                          trailing: PopupMenuButton<String>(
+                            tooltip: '${member.name} পরিচালনা',
+                            onSelected: (choice) {
+                              if (choice == 'name') _rename(context, member);
+                              if (choice == 'admin') _setAdmin(context, member);
+                              if (choice == 'secure') _setSecure(context, member);
+                              if (choice == 'active') {
+                                _setActive(context, member, !member.active);
+                              }
+                            },
+                            itemBuilder: (_) => [
+                              if (member.uid != currentUid)
+                                const PopupMenuItem(
+                                  value: 'name', child: Text('নাম পরিবর্তন'),
+                                ),
+                              if (member.active && member.uid != currentUid)
+                                PopupMenuItem(
+                                  value: 'admin',
+                                  child: Text(member.isAdmin
+                                      ? 'Admin সরিয়ে দিন' : 'Admin করুন'),
+                                ),
+                              if (member.active && member.uid != currentUid)
+                                PopupMenuItem(
+                                  value: 'secure',
+                                  child: Text(member.secure
+                                      ? 'Normal করুন' : 'Secure করুন'),
+                                ),
+                              if (member.uid != currentUid)
+                                PopupMenuItem(
+                                  value: 'active',
+                                  child: Text(member.active
+                                      ? 'সদস্য বাদ দিন' : 'আবার যুক্ত করুন'),
+                                ),
+                            ],
                           ),
                         ),
                     ],

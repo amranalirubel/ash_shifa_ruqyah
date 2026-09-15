@@ -13,6 +13,7 @@ class BazzerItem {
     this.createdBy = '',
     this.boughtBy,
     this.hasPendingWrites = false,
+    this.isSecure = false,
   });
 
   final String id;
@@ -26,11 +27,13 @@ class BazzerItem {
   final String createdBy;
   final String? boughtBy;
   final bool hasPendingWrites;
+  final bool isSecure;
 
   factory BazzerItem.fromMap(
     Map<String, dynamic> map,
     String id, {
     bool hasPendingWrites = false,
+    bool isSecure = false,
   }) {
     final rawDate = map['createdAt'];
     DateTime date = DateTime.now();
@@ -54,6 +57,7 @@ class BazzerItem {
       createdBy: map['createdBy'] as String? ?? '',
       boughtBy: map['boughtBy'] as String?,
       hasPendingWrites: hasPendingWrites,
+      isSecure: isSecure,
     );
   }
 
@@ -73,6 +77,7 @@ class BazzerItem {
     String? addedBy,
     String? createdBy,
     bool? hasPendingWrites,
+    bool? isSecure,
   }) => BazzerItem(
     id: id,
     name: name,
@@ -85,5 +90,6 @@ class BazzerItem {
     createdBy: createdBy ?? this.createdBy,
     boughtBy: boughtBy,
     hasPendingWrites: hasPendingWrites ?? this.hasPendingWrites,
+    isSecure: isSecure ?? this.isSecure,
   );
 }

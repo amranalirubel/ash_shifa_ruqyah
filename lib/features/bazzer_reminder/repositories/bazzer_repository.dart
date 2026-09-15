@@ -41,12 +41,17 @@ class BazzerMember {
     required this.name,
     required this.active,
     this.isOwner = false,
+    this.role = 'member',
+    this.secure = false,
   });
 
   final String uid;
   final String name;
   final bool active;
   final bool isOwner;
+  final String role;
+  final bool secure;
+  bool get isAdmin => isOwner || role == 'admin';
 
   factory BazzerMember.fromDocument(
     DocumentSnapshot<Map<String, dynamic>> doc,
@@ -56,6 +61,8 @@ class BazzerMember {
       uid: doc.id,
       name: data['name'] as String? ?? 'সদস্য',
       active: data['active'] == true,
+      role: data['role'] as String? ?? 'member',
+      secure: data['secure'] == true,
     );
   }
 }
@@ -147,6 +154,30 @@ class BazzerRepository {
         return list;
       });
 
+  Stream<List<BazzerItem>> watchSecureItems(
+    String familyId, {
+    required bool isBought,
+    String? authorUid,
+  }) {
+    final collection = _family(familyId).collection('secure_items');
+    final Query<Map<String, dynamic>> query = authorUid == null
+        ? collection.where('isBought', isEqualTo: isBought)
+        : collection.where('createdBy', isEqualTo: authorUid);
+    return query.snapshots(includeMetadataChanges: true).map((snapshot) {
+      final list = snapshot.docs
+          .map((doc) => BazzerItem.fromMap(
+                doc.data(),
+                doc.id,
+                hasPendingWrites: doc.metadata.hasPendingWrites,
+                isSecure: true,
+              ))
+          .where((item) => item.isBought == isBought)
+          .toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    });
+  }
+
   /// Invite creation and joining are online-only; ordinary item writes are
   /// queued by Firestore on Android/iOS while offline.
   Future<BazzerFamily> createFamily() async {
@@ -237,6 +268,7 @@ class BazzerRepository {
       'inviteCode': code,
       'active': true,
       'role': 'member',
+      'secure': false,
       'joinedAt': FieldValue.serverTimestamp(),
       'removedAt': null,
     });
@@ -273,6 +305,33 @@ class BazzerRepository {
     });
   }
 
+  Future<void> renameMember(String familyId, String uid, String name) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty || trimmed.length > 80) {
+      throw FormatException('সদস্যের নাম ১–৮০ অক্ষরের মধ্যে লিখুন।');
+    }
+    await _family(familyId).collection('members').doc(uid).update({
+      'name': trimmed,
+    });
+  }
+
+  Future<void> setMemberAdmin(String familyId, String uid, bool admin) async {
+    await _family(familyId).collection('members').doc(uid).update({
+      'role': admin ? 'admin' : 'member',
+    });
+  }
+
+  Future<void> setMemberSecure(String familyId, String uid, bool secure) async {
+    await _family(familyId).collection('members').doc(uid).update({
+      'secure': secure,
+    });
+  }
+
+  DocumentReference<Map<String, dynamic>> _item(String familyId, BazzerItem item) =>
+      _family(familyId)
+          .collection(item.isSecure ? 'secure_items' : 'items')
+          .doc(item.id);
+
   Future<void> addItems(String familyId, List<BazzerItem> items) async {
     if (items.isEmpty) return;
     final user = currentUser;
@@ -285,7 +344,7 @@ class BazzerRepository {
           !StoreCategory.all.contains(item.category)) {
         throw FormatException('আইটেমের নাম, পরিমাণ বা দোকান ঠিক নেই।');
       }
-      batch.set(_family(familyId).collection('items').doc(item.id), {
+      batch.set(_item(familyId, item), {
         'name': item.name.trim(),
         'quantity': item.quantity,
         'unit': item.unit,
@@ -301,12 +360,39 @@ class BazzerRepository {
     await batch.commit();
   }
 
-  Future<void> setBought(String familyId, String itemId, bool bought) async {
+  Future<void> setBought(String familyId, BazzerItem item, bool bought) async {
     final user = currentUser;
-    await _family(familyId).collection('items').doc(itemId).update({
+    await _item(familyId, item).update({
       'isBought': bought,
       'boughtBy': bought ? user.uid : null,
       'boughtAt': bought ? FieldValue.serverTimestamp() : null,
     });
   }
+
+
+  Future<void> editItem(
+    String familyId,
+    BazzerItem item, {
+    required String name,
+    required double quantity,
+    required String unit,
+    required String category,
+  }) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty || trimmed.length > 120 || quantity <= 0 ||
+        quantity > 1000 || !StoreCategory.all.contains(category) ||
+        !['টা', 'কেজি', 'গ্রাম', 'লিটার', 'মিলি', 'আঁটি', 'প্যাকেট', 'বোতল', 'হালি', 'ডজন'].contains(unit) ||
+        (unit == 'টা' && quantity % 1 != 0)) {
+      throw FormatException('জিনিসের নাম, পরিমাণ বা দোকান ঠিক নেই।');
+    }
+    await _item(familyId, item).update({
+      'name': trimmed,
+      'quantity': quantity,
+      'unit': unit,
+      'category': category,
+    });
+  }
+
+  Future<void> deleteItem(String familyId, BazzerItem item) =>
+      _item(familyId, item).delete();
 }

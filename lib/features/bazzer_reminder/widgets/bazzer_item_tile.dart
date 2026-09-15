@@ -8,11 +8,17 @@ class BazzerItemTile extends StatelessWidget {
     required this.item,
     required this.onToggle,
     required this.canMarkBought,
+    required this.canEdit,
+    required this.onEdit,
+    required this.onDelete,
   });
 
   final BazzerItem item;
   final VoidCallback onToggle;
   final bool canMarkBought;
+  final bool canEdit;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -39,15 +45,24 @@ class BazzerItemTile extends StatelessWidget {
           ),
         ),
         subtitle: Text(
-          '$quantity ${item.unit} • ${item.addedBy}'
+          '$quantity ${item.unit} • ${item.category} • ${item.addedBy}'
+          '${item.isSecure ? ' • Secure' : ''}'
           '${item.hasPendingWrites ? ' • পাঠানোর অপেক্ষায়' : ''}',
           style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
         ),
-        trailing: Chip(
-          label: Text(item.category, style: const TextStyle(fontSize: 11)),
-          padding: EdgeInsets.zero,
-          visualDensity: VisualDensity.compact,
-        ),
+        trailing: canEdit
+            ? PopupMenuButton<String>(
+                tooltip: 'নিজের আইটেম পরিবর্তন বা মুছুন',
+                onSelected: (action) {
+                  if (action == 'edit') onEdit();
+                  if (action == 'delete') onDelete();
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'edit', child: Text('পরিবর্তন করুন')),
+                  PopupMenuItem(value: 'delete', child: Text('মুছে দিন')),
+                ],
+              )
+            : null,
       ),
     );
   }

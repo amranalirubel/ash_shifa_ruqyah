@@ -11,6 +11,7 @@ import '../utils/store_category.dart';
 import '../utils/voice_parser.dart';
 import '../widgets/bazzer_item_tile.dart';
 import 'bazzer_family_page.dart';
+import 'bazzer_edit_item_dialog.dart';
 import 'voice_review_sheet.dart';
 
 class BazzerReminderPage extends StatefulWidget {
@@ -26,6 +27,12 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
   final _nameController = TextEditingController();
   final _quantityController = TextEditingController(text: '1');
   final _searchController = TextEditingController();
+  late final Stream<User?> _authStream = FirebaseAuth.instance.authStateChanges();
+  final Map<String, Stream<String?>> _linkStreams = {};
+  final Map<String, Stream<BazzerFamily?>> _familyStreams = {};
+  final Map<String, Stream<BazzerMember?>> _memberStreams = {};
+  final Map<String, Stream<List<BazzerItem>>> _itemStreams = {};
+  bool _secureNewItem = false;
   String _unit = 'টা';
   String? _manualStore;
   String? _filterStore;
@@ -45,6 +52,31 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
     'হালি',
     'ডজন',
   ];
+
+  Stream<String?> _linkStream(String uid) => _linkStreams.putIfAbsent(
+    uid, () => _repository.watchFamilyId(uid),
+  );
+
+  Stream<BazzerFamily?> _familyStream(String id) => _familyStreams.putIfAbsent(
+    id, () => _repository.watchFamily(id),
+  );
+
+  Stream<BazzerMember?> _memberStream(String id, String uid) =>
+      _memberStreams.putIfAbsent(
+        '$id/$uid', () => _repository.watchOwnMember(id, uid),
+      );
+
+  Stream<List<BazzerItem>> _itemsStream(
+    String id, {
+    required bool bought,
+    bool secure = false,
+    String? authorUid,
+  }) => _itemStreams.putIfAbsent(
+    '$id/$bought/$secure/${authorUid ?? ''}',
+    () => secure
+        ? _repository.watchSecureItems(id, isBought: bought, authorUid: authorUid)
+        : _repository.watchItems(id, isBought: bought),
+  );
 
   @override
   void dispose() {
@@ -70,7 +102,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
     );
   }
 
-  void _addManual(String familyId) {
+  void _addManual(String familyId, {required bool secure}) {
     final name = _nameController.text.trim();
     final number = _quantityController.text
         .trim()
@@ -102,6 +134,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
       unit: _unit,
       category: category,
       createdAt: DateTime.now(),
+      isSecure: secure,
     );
     _queueWrite(_repository.addItems(familyId, [item]));
     _nameController.clear();
@@ -110,7 +143,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
     _message('তালিকায় যোগ হয়েছে। Offline হলে সংযোগ ফিরলে পাঠাবে।');
   }
 
-  Future<void> _toggleVoice(String familyId) async {
+  Future<void> _toggleVoice(String familyId, {required bool secure}) async {
     if (_isListening) {
       await _voice.stopListening();
       if (mounted) setState(() => _isListening = false);
@@ -124,7 +157,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
             _heard = VoiceParser.fixBanglaText(text);
             _isListening = false;
           });
-          unawaited(_reviewVoice(familyId, text));
+          unawaited(_reviewVoice(familyId, text, secure: secure));
         },
         onPartialText: (text) {
           if (mounted) setState(() => _heard = text);
@@ -140,7 +173,11 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
     }
   }
 
-  Future<void> _reviewVoice(String familyId, String text) async {
+  Future<void> _reviewVoice(
+    String familyId,
+    String text, {
+    required bool secure,
+  }) async {
     final parsed = VoiceParser.parsePreview(text);
     final chosen = await showModalBottomSheet<List<BazzerItem>>(
       context: context,
@@ -149,13 +186,15 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
       builder: (sheetContext) => VoiceReviewSheet(heard: text, parsed: parsed),
     );
     if (!mounted || chosen == null || chosen.isEmpty) return;
-    _queueWrite(_repository.addItems(familyId, chosen));
+    _queueWrite(_repository.addItems(
+      familyId, chosen.map((item) => item.copyWith(isSecure: secure)).toList(),
+    ));
     _message('${chosen.length}টি আইটেম তালিকায় যোগ হয়েছে।');
   }
 
   @override
   Widget build(BuildContext context) => StreamBuilder<User?>(
-    stream: FirebaseAuth.instance.authStateChanges(),
+    stream: _authStream,
     builder: (context, userSnapshot) {
       final user = userSnapshot.data ?? FirebaseAuth.instance.currentUser;
       if (user == null) {
@@ -174,7 +213,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
         );
       }
       return StreamBuilder<String?>(
-        stream: _repository.watchFamilyId(user.uid),
+        stream: _linkStream(user.uid),
         builder: (context, linkSnapshot) {
           if (linkSnapshot.hasError) {
             return Scaffold(
@@ -200,7 +239,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
             );
           }
           return StreamBuilder<BazzerFamily?>(
-            stream: _repository.watchFamily(familyId),
+            stream: _familyStream(familyId),
             builder: (context, familySnapshot) {
               if (familySnapshot.hasError) {
                 return Scaffold(
@@ -224,9 +263,19 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
                 );
               }
               final owner = family.ownerUid == user.uid;
-              if (owner) return _shoppingScreen(family, true);
+              if (owner) {
+                return _shoppingScreen(
+                  family,
+                  BazzerMember(
+                    uid: user.uid,
+                    name: user.displayName ?? 'মূল অ্যাকাউন্ট',
+                    active: true,
+                    isOwner: true,
+                  ),
+                );
+              }
               return StreamBuilder<BazzerMember?>(
-                stream: _repository.watchOwnMember(family.id, user.uid),
+                stream: _memberStream(family.id, user.uid),
                 builder: (context, memberSnapshot) {
                   if (memberSnapshot.connectionState ==
                       ConnectionState.waiting) {
@@ -250,7 +299,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
                       ),
                     );
                   }
-                  return _shoppingScreen(family, false);
+                  return _shoppingScreen(family, memberSnapshot.data!);
                 },
               );
             },
@@ -260,15 +309,17 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
     },
   );
 
-  Widget _shoppingScreen(BazzerFamily family, bool owner) {
+  Widget _shoppingScreen(BazzerFamily family, BazzerMember member) {
     final colors = Theme.of(context).colorScheme;
+    final admin = member.isAdmin;
+    final secure = member.secure || (admin && _secureNewItem);
     return DefaultTabController(
       length: 2,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('পরিবারের বাজার'),
           actions: [
-            if (owner)
+            if (admin)
               IconButton(
                 tooltip: 'পরিবারের সদস্য ও কোড',
                 onPressed: () => Navigator.of(context).push(
@@ -276,6 +327,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
                     builder: (_) => BazzerFamilyManagePage(
                       family: family,
                       repository: _repository,
+                      currentUid: member.uid,
                     ),
                   ),
                 ),
@@ -290,14 +342,15 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
           ),
         ),
         floatingActionButton: FloatingActionButton.extended(
-          onPressed: () => _toggleVoice(family.id),
+          onPressed: () => _toggleVoice(family.id, secure: secure),
           icon: Icon(_isListening ? Icons.stop_rounded : Icons.mic_rounded),
           label: Text(_isListening ? 'শুনছি—থামুন' : 'বাংলায় বলুন'),
         ),
         body: SafeArea(
-          child: Column(
-            children: [
-              Padding(
+          child: NestedScrollView(
+            headerSliverBuilder: (context, innerBoxIsScrolled) => [
+              SliverToBoxAdapter(
+                child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                 child: Column(
                   children: [
@@ -314,9 +367,13 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
-                                owner
-                                    ? 'মূল অ্যাকাউন্ট • সদস্যরা যোগ করবেন, আপনি বাজার সম্পন্ন করবেন'
-                                    : 'পরিবারের সদস্য • আপনি তালিকায় যোগ করতে পারবেন',
+                                member.isOwner
+                                    ? 'মূল অ্যাকাউন্ট • Admin • বাজার সম্পন্ন ও সদস্য পরিচালনা'
+                                    : admin
+                                        ? 'Admin • বাজার সম্পন্ন ও সদস্য পরিচালনা'
+                                        : member.secure
+                                            ? 'Secure সদস্য • আপনার নতুন তালিকা শুধু Admin ও আপনি দেখবেন'
+                                            : 'পরিবারের সদস্য • আপনি তালিকায় যোগ করতে পারবেন',
                                 style: TextStyle(
                                   color: colors.onPrimaryContainer,
                                 ),
@@ -345,6 +402,13 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
                         hintText: 'বাজারের জিনিস খুঁজুন',
                       ),
                     ),
+                    if (admin)
+                      SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('নতুন আইটেম Secure তালিকায় যোগ করুন'),
+                        value: _secureNewItem,
+                        onChanged: (value) => setState(() => _secureNewItem = value),
+                      ),
                     ExpansionTile(
                       title: const Text('লিখে নতুন জিনিস যোগ করুন'),
                       leading: const Icon(Icons.add_circle_outline_rounded),
@@ -421,7 +485,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
                         Align(
                           alignment: Alignment.centerRight,
                           child: FilledButton.icon(
-                            onPressed: () => _addManual(family.id),
+                            onPressed: () => _addManual(family.id, secure: secure),
                             icon: const Icon(Icons.add),
                             label: const Text('তালিকায় যোগ করুন'),
                           ),
@@ -430,16 +494,15 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
                     ),
                   ],
                 ),
-              ),
-              Expanded(
-                child: TabBarView(
-                  children: [
-                    _itemsTab(family.id, owner: owner, bought: false),
-                    _itemsTab(family.id, owner: owner, bought: true),
-                  ],
                 ),
               ),
             ],
+            body: TabBarView(
+              children: [
+                _itemsTab(family.id, member: member, bought: false),
+                _itemsTab(family.id, member: member, bought: true),
+              ],
+            ),
           ),
         ),
       ),
@@ -448,11 +511,11 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
 
   Widget _itemsTab(
     String familyId, {
-    required bool owner,
+    required BazzerMember member,
     required bool bought,
   }) {
     return StreamBuilder<List<BazzerItem>>(
-      stream: _repository.watchItems(familyId, isBought: bought),
+      stream: _itemsStream(familyId, bought: bought),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return const Center(
@@ -464,24 +527,52 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        final filtered = (snapshot.data ?? const <BazzerItem>[])
-            .where(
-              (item) => item.name.toLowerCase().contains(_search.toLowerCase()),
-            )
-            .toList();
-        if (filtered.isEmpty) {
-          return Center(
-            child: Text(
-              bought
-                  ? 'এখনো কেনা হয়েছে এমন জিনিস নেই।'
-                  : 'দোকান অনুযায়ী বাজার যোগ করুন।',
+        // Every writer keeps access to their own older secure items after an
+        // admin changes their account back to normal.
+        return StreamBuilder<List<BazzerItem>>(
+            stream: _itemsStream(
+              familyId,
+              bought: bought,
+              secure: true,
+              authorUid: member.isAdmin ? null : member.uid,
             ),
+            builder: (context, secureSnapshot) {
+              if (secureSnapshot.hasError) {
+                return const Center(child: Text('Secure তালিকা পড়া যায়নি। Firebase rules পরীক্ষা করুন।'));
+              }
+              return _itemList(
+                familyId, member: member, bought: bought,
+                items: [...?snapshot.data, ...?secureSnapshot.data],
+              );
+            },
           );
-        }
+      },
+    );
+  }
+
+  Widget _itemList(
+    String familyId, {
+    required BazzerMember member,
+    required bool bought,
+    required List<BazzerItem> items,
+  }) {
+    final filtered = items
+        .where((item) => item.name.toLowerCase().contains(_search.toLowerCase()))
+        .toList();
+    filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
         return ListView(
           padding: const EdgeInsets.fromLTRB(14, 6, 14, 100),
           children: [
             if (!bought) _storeFilters(),
+            if (filtered.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Center(
+                  child: Text(bought
+                      ? 'এখনো কেনা হয়েছে এমন জিনিস নেই।'
+                      : 'দোকান অনুযায়ী বাজার যোগ করুন।'),
+                ),
+              ),
             for (final category in StoreCategory.all)
               if ((_filterStore == null ||
                       bought ||
@@ -498,8 +589,8 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
                   (item) => item.category == category,
                 ))
                   Dismissible(
-                    key: ValueKey(item.id),
-                    direction: owner
+                    key: ValueKey('${item.isSecure}/${item.id}'),
+                    direction: member.isAdmin
                         ? DismissDirection.endToStart
                         : DismissDirection.none,
                     background: Container(
@@ -511,11 +602,11 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
                       ),
                     ),
                     confirmDismiss: (_) async {
-                      if (owner) {
+                      if (member.isAdmin) {
                         _queueWrite(
                           _repository.setBought(
                             familyId,
-                            item.id,
+                            item,
                             !item.isBought,
                           ),
                         );
@@ -525,11 +616,14 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
                     },
                     child: BazzerItemTile(
                       item: item,
-                      canMarkBought: owner,
+                      canMarkBought: member.isAdmin,
+                      canEdit: item.createdBy == member.uid,
+                      onEdit: () => _editItem(familyId, item),
+                      onDelete: () => _deleteItem(familyId, item),
                       onToggle: () => _queueWrite(
                         _repository.setBought(
                           familyId,
-                          item.id,
+                          item,
                           !item.isBought,
                         ),
                       ),
@@ -538,8 +632,44 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
               ],
           ],
         );
-      },
+  }
+
+  Future<void> _editItem(String familyId, BazzerItem item) async {
+    final edited = await showDialog<BazzerItemEdit>(
+      context: context,
+      builder: (_) => BazzerEditItemDialog(item: item),
     );
+    if (!mounted || edited == null) return;
+    _queueWrite(_repository.editItem(
+      familyId, item,
+      name: edited.name,
+      quantity: edited.quantity,
+      unit: edited.unit,
+      category: edited.category,
+    ));
+  }
+
+  Future<void> _deleteItem(String familyId, BazzerItem item) async {
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('তালিকা থেকে মুছবেন?'),
+        content: Text('${item.name} মুছে দিলে পরিবারের তালিকা থেকেও সরে যাবে।'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('বাতিল'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('মুছে দিন'),
+          ),
+        ],
+      ),
+    );
+    if (mounted && approved == true) {
+      _queueWrite(_repository.deleteItem(familyId, item));
+    }
   }
 
   Widget _storeFilters() => SingleChildScrollView(
