@@ -27,7 +27,8 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
   final _nameController = TextEditingController();
   final _quantityController = TextEditingController(text: '1');
   final _searchController = TextEditingController();
-  late final Stream<User?> _authStream = FirebaseAuth.instance.authStateChanges();
+  late final Stream<User?> _authStream = FirebaseAuth.instance
+      .authStateChanges();
   final Map<String, Stream<String?>> _linkStreams = {};
   final Map<String, Stream<BazzerFamily?>> _familyStreams = {};
   final Map<String, Stream<BazzerMember?>> _memberStreams = {};
@@ -53,18 +54,14 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
     'ডজন',
   ];
 
-  Stream<String?> _linkStream(String uid) => _linkStreams.putIfAbsent(
-    uid, () => _repository.watchFamilyId(uid),
-  );
+  Stream<String?> _linkStream(String uid) =>
+      _linkStreams.putIfAbsent(uid, () => _repository.watchFamilyId(uid));
 
-  Stream<BazzerFamily?> _familyStream(String id) => _familyStreams.putIfAbsent(
-    id, () => _repository.watchFamily(id),
-  );
+  Stream<BazzerFamily?> _familyStream(String id) =>
+      _familyStreams.putIfAbsent(id, () => _repository.watchFamily(id));
 
-  Stream<BazzerMember?> _memberStream(String id, String uid) =>
-      _memberStreams.putIfAbsent(
-        '$id/$uid', () => _repository.watchOwnMember(id, uid),
-      );
+  Stream<BazzerMember?> _memberStream(String id, String uid) => _memberStreams
+      .putIfAbsent('$id/$uid', () => _repository.watchOwnMember(id, uid));
 
   Stream<List<BazzerItem>> _itemsStream(
     String id, {
@@ -74,7 +71,11 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
   }) => _itemStreams.putIfAbsent(
     '$id/$bought/$secure/${authorUid ?? ''}',
     () => secure
-        ? _repository.watchSecureItems(id, isBought: bought, authorUid: authorUid)
+        ? _repository.watchSecureItems(
+            id,
+            isBought: bought,
+            authorUid: authorUid,
+          )
         : _repository.watchItems(id, isBought: bought),
   );
 
@@ -89,9 +90,8 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
 
   void _message(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _queueWrite(Future<void> operation) {
@@ -186,9 +186,12 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
       builder: (sheetContext) => VoiceReviewSheet(heard: text, parsed: parsed),
     );
     if (!mounted || chosen == null || chosen.isEmpty) return;
-    _queueWrite(_repository.addItems(
-      familyId, chosen.map((item) => item.copyWith(isSecure: secure)).toList(),
-    ));
+    _queueWrite(
+      _repository.addItems(
+        familyId,
+        chosen.map((item) => item.copyWith(isSecure: secure)).toList(),
+      ),
+    );
     _message('${chosen.length}টি আইটেম তালিকায় যোগ হয়েছে।');
   }
 
@@ -351,149 +354,153 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
             headerSliverBuilder: (context, innerBoxIsScrolled) => [
               SliverToBoxAdapter(
                 child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                child: Column(
-                  children: [
-                    Card(
-                      color: colors.primaryContainer,
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.family_restroom_rounded,
-                              color: colors.onPrimaryContainer,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                member.isOwner
-                                    ? 'মূল অ্যাকাউন্ট • Admin • বাজার সম্পন্ন ও সদস্য পরিচালনা'
-                                    : admin
-                                        ? 'Admin • বাজার সম্পন্ন ও সদস্য পরিচালনা'
-                                        : member.secure
-                                            ? 'Secure সদস্য • আপনার নতুন তালিকা শুধু Admin ও আপনি দেখবেন'
-                                            : 'পরিবারের সদস্য • আপনি তালিকায় যোগ করতে পারবেন',
-                                style: TextStyle(
-                                  color: colors.onPrimaryContainer,
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: Column(
+                    children: [
+                      Card(
+                        color: colors.primaryContainer,
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.family_restroom_rounded,
+                                color: colors.onPrimaryContainer,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  member.isOwner
+                                      ? 'মূল অ্যাকাউন্ট • Admin • বাজার সম্পন্ন ও সদস্য পরিচালনা'
+                                      : admin
+                                      ? 'Admin • বাজার সম্পন্ন ও সদস্য পরিচালনা'
+                                      : member.secure
+                                      ? 'Secure সদস্য • আপনার নতুন তালিকা শুধু Admin ও আপনি দেখবেন'
+                                      : 'পরিবারের সদস্য • আপনি তালিকায় যোগ করতে পারবেন',
+                                  style: TextStyle(
+                                    color: colors.onPrimaryContainer,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    if (_heard.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 5),
-                        child: Text(
-                          '🎤 $_heard',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: colors.onSurfaceVariant),
-                        ),
-                      ),
-                    TextField(
-                      controller: _searchController,
-                      onChanged: (value) =>
-                          setState(() => _search = value.trim()),
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.search_rounded),
-                        hintText: 'বাজারের জিনিস খুঁজুন',
-                      ),
-                    ),
-                    if (admin)
-                      SwitchListTile.adaptive(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('নতুন আইটেম Secure তালিকায় যোগ করুন'),
-                        value: _secureNewItem,
-                        onChanged: (value) => setState(() => _secureNewItem = value),
-                      ),
-                    ExpansionTile(
-                      title: const Text('লিখে নতুন জিনিস যোগ করুন'),
-                      leading: const Icon(Icons.add_circle_outline_rounded),
-                      tilePadding: EdgeInsets.zero,
-                      childrenPadding: const EdgeInsets.only(bottom: 8),
-                      children: [
-                        TextField(
-                          controller: _nameController,
-                          decoration: const InputDecoration(
-                            labelText: 'জিনিসের নাম (যেমন কাঁচামরিচ)',
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 7),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _quantityController,
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                      decimal: true,
-                                    ),
-                                decoration: const InputDecoration(
-                                  labelText: 'পরিমাণ',
+                      ),
+                      if (_heard.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 5),
+                          child: Text(
+                            '🎤 $_heard',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: colors.onSurfaceVariant),
+                          ),
+                        ),
+                      TextField(
+                        controller: _searchController,
+                        onChanged: (value) =>
+                            setState(() => _search = value.trim()),
+                        decoration: const InputDecoration(
+                          prefixIcon: Icon(Icons.search_rounded),
+                          hintText: 'বাজারের জিনিস খুঁজুন',
+                        ),
+                      ),
+                      if (admin)
+                        SwitchListTile.adaptive(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text(
+                            'নতুন আইটেম Secure তালিকায় যোগ করুন',
+                          ),
+                          value: _secureNewItem,
+                          onChanged: (value) =>
+                              setState(() => _secureNewItem = value),
+                        ),
+                      ExpansionTile(
+                        title: const Text('লিখে নতুন জিনিস যোগ করুন'),
+                        leading: const Icon(Icons.add_circle_outline_rounded),
+                        tilePadding: EdgeInsets.zero,
+                        childrenPadding: const EdgeInsets.only(bottom: 8),
+                        children: [
+                          TextField(
+                            controller: _nameController,
+                            decoration: const InputDecoration(
+                              labelText: 'জিনিসের নাম (যেমন কাঁচামরিচ)',
+                            ),
+                          ),
+                          const SizedBox(height: 7),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _quantityController,
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                        decimal: true,
+                                      ),
+                                  decoration: const InputDecoration(
+                                    labelText: 'পরিমাণ',
+                                  ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: DropdownButtonFormField<String>(
-                                initialValue: _unit,
-                                decoration: const InputDecoration(
-                                  labelText: 'একক',
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  initialValue: _unit,
+                                  decoration: const InputDecoration(
+                                    labelText: 'একক',
+                                  ),
+                                  items: [
+                                    for (final unit in _units)
+                                      DropdownMenuItem(
+                                        value: unit,
+                                        child: Text(unit),
+                                      ),
+                                  ],
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setState(() => _unit = value);
+                                    }
+                                  },
                                 ),
-                                items: [
-                                  for (final unit in _units)
-                                    DropdownMenuItem(
-                                      value: unit,
-                                      child: Text(unit),
-                                    ),
-                                ],
-                                onChanged: (value) {
-                                  if (value != null) {
-                                    setState(() => _unit = value);
-                                  }
-                                },
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        DropdownButtonFormField<String>(
-                          key: ValueKey(_manualStore),
-                          initialValue: _manualStore ?? '',
-                          decoration: const InputDecoration(
-                            labelText: 'কোন দোকান?',
+                            ],
                           ),
-                          items: [
-                            const DropdownMenuItem(
-                              value: '',
-                              child: Text('নাম দেখে স্বয়ংক্রিয়'),
+                          const SizedBox(height: 8),
+                          DropdownButtonFormField<String>(
+                            key: ValueKey(_manualStore),
+                            initialValue: _manualStore ?? '',
+                            decoration: const InputDecoration(
+                              labelText: 'কোন দোকান?',
                             ),
-                            for (final category in StoreCategory.all)
-                              DropdownMenuItem(
-                                value: category,
-                                child: Text(category),
+                            items: [
+                              const DropdownMenuItem(
+                                value: '',
+                                child: Text('নাম দেখে স্বয়ংক্রিয়'),
                               ),
-                          ],
-                          onChanged: (value) => setState(
-                            () => _manualStore = value == '' ? null : value,
+                              for (final category in StoreCategory.all)
+                                DropdownMenuItem(
+                                  value: category,
+                                  child: Text(category),
+                                ),
+                            ],
+                            onChanged: (value) => setState(
+                              () => _manualStore = value == '' ? null : value,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 7),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: FilledButton.icon(
-                            onPressed: () => _addManual(family.id, secure: secure),
-                            icon: const Icon(Icons.add),
-                            label: const Text('তালিকায় যোগ করুন'),
+                          const SizedBox(height: 7),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: FilledButton.icon(
+                              onPressed: () =>
+                                  _addManual(family.id, secure: secure),
+                              icon: const Icon(Icons.add),
+                              label: const Text('তালিকায় যোগ করুন'),
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -530,22 +537,28 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
         // Every writer keeps access to their own older secure items after an
         // admin changes their account back to normal.
         return StreamBuilder<List<BazzerItem>>(
-            stream: _itemsStream(
-              familyId,
-              bought: bought,
-              secure: true,
-              authorUid: member.isAdmin ? null : member.uid,
-            ),
-            builder: (context, secureSnapshot) {
-              if (secureSnapshot.hasError) {
-                return const Center(child: Text('Secure তালিকা পড়া যায়নি। Firebase rules পরীক্ষা করুন।'));
-              }
-              return _itemList(
-                familyId, member: member, bought: bought,
-                items: [...?snapshot.data, ...?secureSnapshot.data],
+          stream: _itemsStream(
+            familyId,
+            bought: bought,
+            secure: true,
+            authorUid: member.isAdmin ? null : member.uid,
+          ),
+          builder: (context, secureSnapshot) {
+            if (secureSnapshot.hasError) {
+              return const Center(
+                child: Text(
+                  'Secure তালিকা পড়া যায়নি। Firebase rules পরীক্ষা করুন।',
+                ),
               );
-            },
-          );
+            }
+            return _itemList(
+              familyId,
+              member: member,
+              bought: bought,
+              items: [...?snapshot.data, ...?secureSnapshot.data],
+            );
+          },
+        );
       },
     );
   }
@@ -557,81 +570,75 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
     required List<BazzerItem> items,
   }) {
     final filtered = items
-        .where((item) => item.name.toLowerCase().contains(_search.toLowerCase()))
+        .where(
+          (item) => item.name.toLowerCase().contains(_search.toLowerCase()),
+        )
         .toList();
     filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(14, 6, 14, 100),
-          children: [
-            if (!bought) _storeFilters(),
-            if (filtered.isEmpty)
-              Padding(
-                padding: const EdgeInsets.all(24),
-                child: Center(
-                  child: Text(bought
-                      ? 'এখনো কেনা হয়েছে এমন জিনিস নেই।'
-                      : 'দোকান অনুযায়ী বাজার যোগ করুন।'),
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(14, 6, 14, 100),
+      children: [
+        if (!bought) _storeFilters(),
+        if (filtered.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Center(
+              child: Text(
+                bought
+                    ? 'এখনো কেনা হয়েছে এমন জিনিস নেই।'
+                    : 'দোকান অনুযায়ী বাজার যোগ করুন।',
+              ),
+            ),
+          ),
+        for (final category in StoreCategory.all)
+          if ((_filterStore == null || bought || _filterStore == category) &&
+              filtered.any((item) => item.category == category)) ...[
+            Padding(
+              padding: const EdgeInsets.only(top: 12, bottom: 4),
+              child: Text(
+                '$category দোকান',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            for (final item in filtered.where(
+              (item) => item.category == category,
+            ))
+              Dismissible(
+                key: ValueKey('${item.isSecure}/${item.id}'),
+                direction: member.isAdmin
+                    ? DismissDirection.endToStart
+                    : DismissDirection.none,
+                background: Container(
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 22),
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  child: Icon(
+                    bought ? Icons.undo_rounded : Icons.done_all_rounded,
+                  ),
+                ),
+                confirmDismiss: (_) async {
+                  if (member.isAdmin) {
+                    _queueWrite(
+                      _repository.setBought(familyId, item, !item.isBought),
+                    );
+                  }
+                  // Let the Firestore listener move the tile between tabs.
+                  return false;
+                },
+                child: BazzerItemTile(
+                  item: item,
+                  canMarkBought: member.isAdmin,
+                  canEdit: item.createdBy == member.uid,
+                  onEdit: () => _editItem(familyId, item),
+                  onDelete: () => _deleteItem(familyId, item),
+                  onToggle: () => _queueWrite(
+                    _repository.setBought(familyId, item, !item.isBought),
+                  ),
                 ),
               ),
-            for (final category in StoreCategory.all)
-              if ((_filterStore == null ||
-                      bought ||
-                      _filterStore == category) &&
-                  filtered.any((item) => item.category == category)) ...[
-                Padding(
-                  padding: const EdgeInsets.only(top: 12, bottom: 4),
-                  child: Text(
-                    '$category দোকান',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                for (final item in filtered.where(
-                  (item) => item.category == category,
-                ))
-                  Dismissible(
-                    key: ValueKey('${item.isSecure}/${item.id}'),
-                    direction: member.isAdmin
-                        ? DismissDirection.endToStart
-                        : DismissDirection.none,
-                    background: Container(
-                      alignment: Alignment.centerRight,
-                      padding: const EdgeInsets.only(right: 22),
-                      color: Theme.of(context).colorScheme.primaryContainer,
-                      child: Icon(
-                        bought ? Icons.undo_rounded : Icons.done_all_rounded,
-                      ),
-                    ),
-                    confirmDismiss: (_) async {
-                      if (member.isAdmin) {
-                        _queueWrite(
-                          _repository.setBought(
-                            familyId,
-                            item,
-                            !item.isBought,
-                          ),
-                        );
-                      }
-                      // Let the Firestore listener move the tile between tabs.
-                      return false;
-                    },
-                    child: BazzerItemTile(
-                      item: item,
-                      canMarkBought: member.isAdmin,
-                      canEdit: item.createdBy == member.uid,
-                      onEdit: () => _editItem(familyId, item),
-                      onDelete: () => _deleteItem(familyId, item),
-                      onToggle: () => _queueWrite(
-                        _repository.setBought(
-                          familyId,
-                          item,
-                          !item.isBought,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
           ],
-        );
+      ],
+    );
   }
 
   Future<void> _editItem(String familyId, BazzerItem item) async {
@@ -640,13 +647,16 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
       builder: (_) => BazzerEditItemDialog(item: item),
     );
     if (!mounted || edited == null) return;
-    _queueWrite(_repository.editItem(
-      familyId, item,
-      name: edited.name,
-      quantity: edited.quantity,
-      unit: edited.unit,
-      category: edited.category,
-    ));
+    _queueWrite(
+      _repository.editItem(
+        familyId,
+        item,
+        name: edited.name,
+        quantity: edited.quantity,
+        unit: edited.unit,
+        category: edited.category,
+      ),
+    );
   }
 
   Future<void> _deleteItem(String familyId, BazzerItem item) async {

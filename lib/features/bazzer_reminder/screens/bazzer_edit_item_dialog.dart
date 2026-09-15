@@ -34,8 +34,16 @@ class _BazzerEditItemDialogState extends State<BazzerEditItemDialog> {
   String? _error;
 
   static const units = [
-    'টা', 'কেজি', 'গ্রাম', 'লিটার', 'মিলি',
-    'আঁটি', 'প্যাকেট', 'বোতল', 'হালি', 'ডজন',
+    'টা',
+    'কেজি',
+    'গ্রাম',
+    'লিটার',
+    'মিলি',
+    'আঁটি',
+    'প্যাকেট',
+    'বোতল',
+    'হালি',
+    'ডজন',
   ];
 
   @override
@@ -61,18 +69,23 @@ class _BazzerEditItemDialogState extends State<BazzerEditItemDialog> {
       (match) => '০১২৩৪৫৬৭৮৯'.indexOf(match[0]!).toString(),
     );
     final quantity = double.tryParse(number);
-    if (name.isEmpty || name.length > 120 || quantity == null ||
-        quantity <= 0 || quantity > 1000 ||
+    if (name.isEmpty ||
+        name.length > 120 ||
+        quantity == null ||
+        quantity <= 0 ||
+        quantity > 1000 ||
         (_unit == 'টা' && quantity % 1 != 0)) {
       setState(() => _error = 'সঠিক নাম ও ০ থেকে ১০০০-এর মধ্যে পরিমাণ লিখুন।');
       return;
     }
-    Navigator.of(context).pop(BazzerItemEdit(
-      name: name,
-      quantity: quantity,
-      unit: _unit,
-      category: _category,
-    ));
+    Navigator.of(context).pop(
+      BazzerItemEdit(
+        name: name,
+        quantity: quantity,
+        unit: _unit,
+        category: _category,
+      ),
+    );
   }
 
   @override
@@ -113,9 +126,11 @@ class _BazzerEditItemDialogState extends State<BazzerEditItemDialog> {
               if (value != null) setState(() => _category = value);
             },
           ),
-          if (_error != null) Text(_error!, style: TextStyle(
-            color: Theme.of(context).colorScheme.error,
-          )),
+          if (_error != null)
+            Text(
+              _error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
         ],
       ),
     ),

@@ -128,9 +128,9 @@ class BazzerFamilyManagePage extends StatelessWidget {
   final BazzerRepository repository;
   final String currentUid;
 
-  void _message(BuildContext context, String message) => ScaffoldMessenger.of(
-    context,
-  ).showSnackBar(SnackBar(content: Text(message)));
+  void _message(BuildContext context, String message) =>
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
 
   Future<void> _toggleJoin(BuildContext context, bool enabled) async {
     try {
@@ -232,8 +232,10 @@ class BazzerFamilyManagePage extends StatelessWidget {
         context: context,
         builder: (dialogContext) => AlertDialog(
           title: const Text('নতুন Admin করবেন?'),
-          content: Text('${member.name} অন্য সদস্য পরিচালনা, Secure তালিকা দেখা '
-              'ও বাজার সম্পন্ন করার অধিকার পাবেন।'),
+          content: Text(
+            '${member.name} অন্য সদস্য পরিচালনা, Secure তালিকা দেখা '
+            'ও বাজার সম্পন্ন করার অধিকার পাবেন।',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -252,7 +254,8 @@ class BazzerFamilyManagePage extends StatelessWidget {
       await repository.setMemberAdmin(family.id, member.uid, !member.isAdmin);
       if (context.mounted) _message(context, 'Admin-এর অনুমতি পরিবর্তন হয়েছে।');
     } catch (error) {
-      if (context.mounted) _message(context, 'Admin পরিবর্তন করা যায়নি: $error');
+      if (context.mounted)
+        _message(context, 'Admin পরিবর্তন করা যায়নি: $error');
     }
   }
 
@@ -260,12 +263,16 @@ class BazzerFamilyManagePage extends StatelessWidget {
     try {
       await repository.setMemberSecure(family.id, member.uid, !member.secure);
       if (context.mounted) {
-        _message(context, member.secure
-            ? 'Normal করা হয়েছে; আগের Secure আইটেম গোপন থাকবে।'
-            : 'Secure করা হয়েছে; নতুন আইটেম অন্য সদস্যরা দেখবে না।');
+        _message(
+          context,
+          member.secure
+              ? 'Normal করা হয়েছে; আগের Secure আইটেম গোপন থাকবে।'
+              : 'Secure করা হয়েছে; নতুন আইটেম অন্য সদস্যরা দেখবে না।',
+        );
       }
     } catch (error) {
-      if (context.mounted) _message(context, 'Secure পরিবর্তন করা যায়নি: $error');
+      if (context.mounted)
+        _message(context, 'Secure পরিবর্তন করা যায়নি: $error');
     }
   }
 
@@ -359,17 +366,20 @@ class BazzerFamilyManagePage extends StatelessWidget {
                                 : Icons.person_off_outlined,
                           ),
                           title: Text(member.name),
-                          subtitle: Text([
-                            if (member.isAdmin) 'Admin',
-                            member.secure ? 'Secure' : 'Normal',
-                            member.active ? 'যুক্ত আছেন' : 'বাদ দেওয়া হয়েছে',
-                          ].join(' • ')),
+                          subtitle: Text(
+                            [
+                              if (member.isAdmin) 'Admin',
+                              member.secure ? 'Secure' : 'Normal',
+                              member.active ? 'যুক্ত আছেন' : 'বাদ দেওয়া হয়েছে',
+                            ].join(' • '),
+                          ),
                           trailing: PopupMenuButton<String>(
                             tooltip: '${member.name} পরিচালনা',
                             onSelected: (choice) {
                               if (choice == 'name') _rename(context, member);
                               if (choice == 'admin') _setAdmin(context, member);
-                              if (choice == 'secure') _setSecure(context, member);
+                              if (choice == 'secure')
+                                _setSecure(context, member);
                               if (choice == 'active') {
                                 _setActive(context, member, !member.active);
                               }
@@ -377,25 +387,35 @@ class BazzerFamilyManagePage extends StatelessWidget {
                             itemBuilder: (_) => [
                               if (member.uid != currentUid)
                                 const PopupMenuItem(
-                                  value: 'name', child: Text('নাম পরিবর্তন'),
+                                  value: 'name',
+                                  child: Text('নাম পরিবর্তন'),
                                 ),
                               if (member.active && member.uid != currentUid)
                                 PopupMenuItem(
                                   value: 'admin',
-                                  child: Text(member.isAdmin
-                                      ? 'Admin সরিয়ে দিন' : 'Admin করুন'),
+                                  child: Text(
+                                    member.isAdmin
+                                        ? 'Admin সরিয়ে দিন'
+                                        : 'Admin করুন',
+                                  ),
                                 ),
                               if (member.active && member.uid != currentUid)
                                 PopupMenuItem(
                                   value: 'secure',
-                                  child: Text(member.secure
-                                      ? 'Normal করুন' : 'Secure করুন'),
+                                  child: Text(
+                                    member.secure
+                                        ? 'Normal করুন'
+                                        : 'Secure করুন',
+                                  ),
                                 ),
                               if (member.uid != currentUid)
                                 PopupMenuItem(
                                   value: 'active',
-                                  child: Text(member.active
-                                      ? 'সদস্য বাদ দিন' : 'আবার যুক্ত করুন'),
+                                  child: Text(
+                                    member.active
+                                        ? 'সদস্য বাদ দিন'
+                                        : 'আবার যুক্ত করুন',
+                                  ),
                                 ),
                             ],
                           ),
