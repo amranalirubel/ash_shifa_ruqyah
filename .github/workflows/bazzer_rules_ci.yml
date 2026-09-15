@@ -1,0 +1,32 @@
+name: Family Shopping Rules CI
+
+on:
+  pull_request:
+    paths:
+      - firestore.rules
+      - lib/features/bazzer_reminder/**
+      - tool/bazzer_rules_test/**
+      - .github/workflows/bazzer_rules_ci.yml
+  push:
+    branches: [main]
+    paths:
+      - firestore.rules
+      - tool/bazzer_rules_test/**
+
+permissions:
+  contents: read
+
+jobs:
+  shopping-rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install rules-test dependencies
+        run: npm install --no-audit --no-fund
+        working-directory: tool/bazzer_rules_test
+      - name: Test shopping access in a disposable Firestore emulator
+        run: ./tool/bazzer_rules_test/node_modules/.bin/firebase emulators:exec --only firestore --project demo-bazzer-ci "node tool/bazzer_rules_test/test.mjs"

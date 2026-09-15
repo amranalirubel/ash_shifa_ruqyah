@@ -16,6 +16,20 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/app_admins/$(request.auth.uid)).data.enabled == true;
     }
 
+    function shoppingOwner(familyId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/shopping_families/$(familyId))
+        && get(/databases/$(database)/documents/shopping_families/$(familyId)).data.ownerUid
+          == request.auth.uid;
+    }
+
+    function shoppingMember(familyId) {
+      return shoppingOwner(familyId) || (signedIn()
+        && exists(/databases/$(database)/documents/shopping_families/$(familyId)/members/$(request.auth.uid))
+        && get(/databases/$(database)/documents/shopping_families/$(familyId)/members/$(request.auth.uid)).data.active
+          == true);
+    }
+
     function validProfileCreate(userId) {
       return isOwner(userId)
         && request.resource.data.keys().hasAll(['uid', 'name', 'email'])
@@ -101,6 +115,134 @@ service cloud.firestore {
       allow read: if true;
       allow create, update: if isAdmin();
       allow delete: if false;
+    }
+
+    // Private shared shopping. The old public bazzer_reminder configuration is
+    // retained without migration or deletion. Private family documents live here.
+    match /shopping_families/{familyId} {
+      allow get: if shoppingMember(familyId);
+      allow list: if false;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasAll([
+          'ownerUid', 'name', 'inviteCode', 'joiningEnabled', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'ownerUid', 'name', 'inviteCode', 'joiningEnabled', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() <= 80
+        && request.resource.data.inviteCode is string
+        && request.resource.data.inviteCode.matches('^[A-HJ-NP-Z2-9]{12}$')
+        && request.resource.data.joiningEnabled == true
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if shoppingOwner(familyId)
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['joiningEnabled', 'updatedAt'])
+        && request.resource.data.joiningEnabled is bool
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+
+      match /members/{memberUid} {
+        allow get: if shoppingOwner(familyId)
+          || (signedIn() && request.auth.uid == memberUid);
+        allow list: if shoppingOwner(familyId);
+        allow create: if signedIn() && request.auth.uid == memberUid
+          && request.resource.data.keys().hasAll([
+            'uid', 'name', 'inviteCode', 'active', 'role', 'joinedAt', 'removedAt'
+          ])
+          && request.resource.data.keys().hasOnly([
+            'uid', 'name', 'inviteCode', 'active', 'role', 'joinedAt', 'removedAt'
+          ])
+          && request.resource.data.uid == memberUid
+          && request.resource.data.name is string
+          && request.resource.data.name.size() <= 80
+          && request.resource.data.role == 'member'
+          && request.resource.data.active == true
+          && request.resource.data.removedAt == null
+          && request.resource.data.joinedAt == request.time
+          && request.resource.data.inviteCode is string
+          && exists(/databases/$(database)/documents/shopping_invites/$(request.resource.data.inviteCode))
+          && get(/databases/$(database)/documents/shopping_invites/$(request.resource.data.inviteCode)).data.familyId
+            == familyId
+          && get(/databases/$(database)/documents/shopping_families/$(familyId)).data.joiningEnabled
+            == true
+          && get(/databases/$(database)/documents/shopping_families/$(familyId)).data.inviteCode
+            == request.resource.data.inviteCode;
+        allow update: if shoppingOwner(familyId)
+          && resource.data.uid == memberUid
+          && memberUid != request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['active', 'removedAt'])
+          && request.resource.data.active is bool
+          && (request.resource.data.active == true
+            ? request.resource.data.removedAt == null
+            : request.resource.data.removedAt == request.time);
+        allow delete: if false;
+      }
+
+      match /items/{itemId} {
+        allow get, list: if shoppingMember(familyId);
+        allow create: if shoppingMember(familyId)
+          && request.resource.data.keys().hasAll([
+            'name', 'quantity', 'unit', 'category', 'isBought', 'createdAt',
+            'addedBy', 'createdBy', 'boughtBy', 'boughtAt'
+          ])
+          && request.resource.data.keys().hasOnly([
+            'name', 'quantity', 'unit', 'category', 'isBought', 'createdAt',
+            'addedBy', 'createdBy', 'boughtBy', 'boughtAt'
+          ])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 120
+          && request.resource.data.quantity is number
+          && request.resource.data.quantity > 0
+          && request.resource.data.quantity <= 1000
+          && request.resource.data.unit in [
+            'কেজি', 'গ্রাম', 'লিটার', 'মিলি', 'টা', 'প্যাকেট',
+            'আঁটি', 'বোতল', 'ডজন', 'হালি'
+          ]
+          && request.resource.data.category in [
+            'মুদি', 'সবজি', 'মাছ/মাংস', 'অন্যান্য'
+          ]
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.addedBy is string
+          && request.resource.data.addedBy.size() <= 80
+          && request.resource.data.isBought == false
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.boughtBy == null
+          && request.resource.data.boughtAt == null;
+        allow update: if shoppingOwner(familyId)
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['isBought', 'boughtBy', 'boughtAt'])
+          && request.resource.data.isBought is bool
+          && request.resource.data.isBought != resource.data.isBought
+          && (request.resource.data.isBought == true
+            ? request.resource.data.boughtBy == request.auth.uid
+              && request.resource.data.boughtAt == request.time
+            : request.resource.data.boughtBy == null
+              && request.resource.data.boughtAt == null);
+        allow delete: if false;
+      }
+    }
+
+    // A code is a high-entropy bearer invite: exact-document get only. No
+    // account can list codes, overwrite them or delete someone else's invite.
+    match /shopping_invites/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasAll(['familyId', 'ownerUid', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['familyId', 'ownerUid', 'createdAt'])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.familyId is string
+        && getAfter(/databases/$(database)/documents/shopping_families/$(request.resource.data.familyId)).data.ownerUid
+          == request.auth.uid
+        && getAfter(/databases/$(database)/documents/shopping_families/$(request.resource.data.familyId)).data.inviteCode
+          == code
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
     }
 
     // EasyHome still has shared prototype documents. Keep them private and
