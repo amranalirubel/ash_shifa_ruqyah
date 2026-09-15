@@ -57,8 +57,9 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
 
   void _message(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _queueWrite(Future<void> operation) {

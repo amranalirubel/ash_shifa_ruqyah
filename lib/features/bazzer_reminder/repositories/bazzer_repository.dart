@@ -100,10 +100,9 @@ class BazzerRepository {
       .collection('bazzer_reminder')
       .doc('family');
 
-  Stream<String?> watchFamilyId(String uid) =>
-      _link(uid)
-          .snapshots(includeMetadataChanges: true)
-          .map((snapshot) => snapshot.data()?['familyId'] as String?);
+  Stream<String?> watchFamilyId(String uid) => _link(uid)
+      .snapshots(includeMetadataChanges: true)
+      .map((snapshot) => snapshot.data()?['familyId'] as String?);
 
   Stream<BazzerFamily?> watchFamily(String familyId) => _family(familyId)
       .snapshots(includeMetadataChanges: true)
@@ -130,32 +129,31 @@ class BazzerRepository {
   Stream<List<BazzerItem>> watchItems(
     String familyId, {
     required bool isBought,
-  }) =>
-      _family(familyId)
-          .collection('items')
-          .where('isBought', isEqualTo: isBought)
-          .snapshots(includeMetadataChanges: true)
-          .map((snapshot) {
-            final list = snapshot.docs
-                .map(
-                  (doc) => BazzerItem.fromMap(
-                    doc.data(),
-                    doc.id,
-                    hasPendingWrites: doc.metadata.hasPendingWrites,
-                  ),
-                )
-                .toList();
-            list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-            return list;
-          });
+  }) => _family(familyId)
+      .collection('items')
+      .where('isBought', isEqualTo: isBought)
+      .snapshots(includeMetadataChanges: true)
+      .map((snapshot) {
+        final list = snapshot.docs
+            .map(
+              (doc) => BazzerItem.fromMap(
+                doc.data(),
+                doc.id,
+                hasPendingWrites: doc.metadata.hasPendingWrites,
+              ),
+            )
+            .toList();
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return list;
+      });
 
   /// Invite creation and joining are online-only; ordinary item writes are
   /// queued by Firestore on Android/iOS while offline.
   Future<BazzerFamily> createFamily() async {
     final user = currentUser;
-    final currentLink = await _link(user.uid).get(
-      const GetOptions(source: Source.server),
-    );
+    final currentLink = await _link(
+      user.uid,
+    ).get(const GetOptions(source: Source.server));
     if (currentLink.data()?['familyId'] is String) {
       throw StateError('আপনি ইতিমধ্যে একটি পরিবারের বাজারে যুক্ত আছেন।');
     }
@@ -198,9 +196,9 @@ class BazzerRepository {
 
   Future<void> joinFamily(String rawCode) async {
     final user = currentUser;
-    final currentLink = await _link(user.uid).get(
-      const GetOptions(source: Source.server),
-    );
+    final currentLink = await _link(
+      user.uid,
+    ).get(const GetOptions(source: Source.server));
     if (currentLink.data()?['familyId'] is String) {
       throw StateError('আপনি ইতিমধ্যে একটি পরিবারের বাজারে যুক্ত আছেন।');
     }
@@ -249,7 +247,9 @@ class BazzerRepository {
       await batch.commit();
     } on FirebaseException catch (error) {
       if (error.code == 'permission-denied') {
-        throw StateError('এই পরিবারের কোড বন্ধ অথবা সদস্য যোগ করার অনুমতি নেই।');
+        throw StateError(
+          'এই পরিবারের কোড বন্ধ অথবা সদস্য যোগ করার অনুমতি নেই।',
+        );
       }
       rethrow;
     }

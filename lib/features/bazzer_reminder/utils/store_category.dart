@@ -59,7 +59,10 @@ class StoreCategory {
   };
 
   static String guess(String name) {
-    final normalized = name.toLowerCase().trim();
+    var normalized = name.toLowerCase().trim();
+    for (final alias in aliases.entries) {
+      normalized = normalized.replaceAll(alias.key, alias.value);
+    }
     final ordered = productCategories.keys.toList()
       ..sort((a, b) => b.length.compareTo(a.length));
     for (final product in ordered) {

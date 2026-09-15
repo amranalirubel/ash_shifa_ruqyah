@@ -50,7 +50,9 @@ One spoken sentence is split into separate products and quantities, including
 reviewed and can be edited or omitted before it is shared. Unknown fragments
 are shown explicitly instead of being guessed.
 
-Before merge, test on two different signed-in phones: create and join a
-family, disable joining, remove and restore a member, add a grocery and a
-vegetable by voice, buy and undo a swipe, disconnect a member's phone, add
-an item and reconnect. Test dark and light mode and verify no overflow.
+Before merge, review the Flutter and disposable security-rules CI checks.
+After merging and deploying rules to the intended Firebase project, test on
+two different signed-in phones: create and join a family, disable joining,
+remove and restore a member, add a grocery and a vegetable by voice, buy and
+undo a swipe, disconnect a member's phone, add an item and reconnect. Test
+dark and light mode and verify no overflow before distributing the app.

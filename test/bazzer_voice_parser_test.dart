@@ -84,4 +84,10 @@ void main() {
     expect(code, hasLength(12));
     expect(RegExp(r'^[A-HJ-NP-Z2-9]{12}$').hasMatch(code), isTrue);
   });
+
+  test('typed vegetable aliases map to the vegetable shop', () {
+    expect(StoreCategory.guess('কাঁচা মরিচ'), StoreCategory.vegetable);
+    expect(StoreCategory.guess('পুই শাক'), StoreCategory.vegetable);
+    expect(StoreCategory.guess('ধনিয়া পাতা'), StoreCategory.vegetable);
+  });
 }

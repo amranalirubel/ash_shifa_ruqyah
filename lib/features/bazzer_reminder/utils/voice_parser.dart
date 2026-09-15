@@ -161,9 +161,9 @@ class VoiceParser {
   ) {
     const unitPattern =
         r'মিলিলিটার|প্যাকেট|লিটার|বোতল|কেজি|কিলো|গ্রাম|মিলি|ডজন|হালি|প্যাক|আঁটি|আটি|পিস|টা|টি';
-    final quantities = RegExp('(\\d+(?:\\.\\d+)?)\\s*($unitPattern)(?=\\s|\$)')
-        .allMatches(fragment)
-        .toList();
+    final quantities = RegExp(
+      '(\\d+(?:\\.\\d+)?)\\s*($unitPattern)(?=\\s|\$)',
+    ).allMatches(fragment).toList();
     final extraNumbers = RegExp(r'\d+(?:\.\d+)?').allMatches(fragment).length;
     if (quantities.length > 1 || extraNumbers > 1) {
       needsReview.add(fragment.trim());
