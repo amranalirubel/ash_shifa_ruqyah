@@ -163,8 +163,9 @@ class BazzerRepository {
     final existing = await inviteRef.get(
       const GetOptions(source: Source.server),
     );
-    if (existing.exists)
+    if (existing.exists) {
       throw StateError('কোডটি ব্যবহার হচ্ছে; আবার চেষ্টা করুন।');
+    }
 
     final batch = _db.batch();
     batch.set(familyRef, {

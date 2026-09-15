@@ -176,16 +176,18 @@ class BazzerFamilyManagePage extends StatelessWidget {
     }
     try {
       await repository.setMemberActive(family.id, member.uid, active);
-      if (context.mounted)
+      if (context.mounted) {
         _message(
           context,
           active
               ? 'সদস্য আবার যুক্ত হয়েছে।'
               : 'সদস্যের প্রবেশাধিকার বন্ধ হয়েছে।',
         );
+      }
     } catch (error) {
-      if (context.mounted)
+      if (context.mounted) {
         _message(context, 'সদস্য পরিবর্তন করা যায়নি: $error');
+      }
     }
   }
 
@@ -226,8 +228,9 @@ class BazzerFamilyManagePage extends StatelessWidget {
                           await Clipboard.setData(
                             ClipboardData(text: current.inviteCode),
                           );
-                          if (context.mounted)
+                          if (context.mounted) {
                             _message(context, 'কোড কপি হয়েছে।');
+                          }
                         },
                         icon: const Icon(Icons.copy_rounded),
                         label: const Text('কপি করুন'),
@@ -257,10 +260,11 @@ class BazzerFamilyManagePage extends StatelessWidget {
               StreamBuilder<List<BazzerMember>>(
                 stream: repository.watchMembers(family.id),
                 builder: (context, snapshot) {
-                  if (snapshot.hasError)
+                  if (snapshot.hasError) {
                     return const Text(
                       'সদস্য দেখানো যায়নি। Firestore rules পরীক্ষা করুন।',
                     );
+                  }
                   final members = snapshot.data ?? const <BazzerMember>[];
                   return Column(
                     children: [

@@ -218,10 +218,11 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
                 );
               }
               final family = familySnapshot.data;
-              if (family == null)
+              if (family == null) {
                 return const Scaffold(
                   body: Center(child: Text('পরিবারটি পাওয়া যায়নি।')),
                 );
+              }
               final owner = family.ownerUid == user.uid;
               if (owner) return _shoppingScreen(family, true);
               return StreamBuilder<BazzerMember?>(
@@ -386,8 +387,9 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
                                     ),
                                 ],
                                 onChanged: (value) {
-                                  if (value != null)
+                                  if (value != null) {
                                     setState(() => _unit = value);
+                                  }
                                 },
                               ),
                             ),
@@ -452,12 +454,13 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
     return StreamBuilder<List<BazzerItem>>(
       stream: _repository.watchItems(familyId, isBought: bought),
       builder: (context, snapshot) {
-        if (snapshot.hasError)
+        if (snapshot.hasError) {
           return const Center(
             child: Text(
               'তালিকা পড়া যায়নি। সদস্যের অনুমতি ও rules পরীক্ষা করুন।',
             ),
           );
+        }
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }

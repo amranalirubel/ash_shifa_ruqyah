@@ -71,8 +71,8 @@ class VoiceService {
           onPartialText?.call(text);
         }
       },
-      localeId: _bengaliLocale,
       listenOptions: stt.SpeechListenOptions(
+        localeId: _bengaliLocale,
         listenMode: stt.ListenMode.dictation,
         partialResults: true,
         cancelOnError: true,
