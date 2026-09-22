@@ -254,8 +254,9 @@ class BazzerFamilyManagePage extends StatelessWidget {
       await repository.setMemberAdmin(family.id, member.uid, !member.isAdmin);
       if (context.mounted) _message(context, 'Admin-এর অনুমতি পরিবর্তন হয়েছে।');
     } catch (error) {
-      if (context.mounted)
+      if (context.mounted) {
         _message(context, 'Admin পরিবর্তন করা যায়নি: $error');
+      }
     }
   }
 
@@ -271,8 +272,9 @@ class BazzerFamilyManagePage extends StatelessWidget {
         );
       }
     } catch (error) {
-      if (context.mounted)
+      if (context.mounted) {
         _message(context, 'Secure পরিবর্তন করা যায়নি: $error');
+      }
     }
   }
 
@@ -378,8 +380,9 @@ class BazzerFamilyManagePage extends StatelessWidget {
                             onSelected: (choice) {
                               if (choice == 'name') _rename(context, member);
                               if (choice == 'admin') _setAdmin(context, member);
-                              if (choice == 'secure')
+                              if (choice == 'secure') {
                                 _setSecure(context, member);
+                              }
                               if (choice == 'active') {
                                 _setActive(context, member, !member.active);
                               }
