@@ -107,10 +107,9 @@ class BazzerRepository {
       .collection('bazzer_reminder')
       .doc('family');
 
-  Stream<String?> watchFamilyId(String uid) =>
-      _link(uid)
-          .snapshots(includeMetadataChanges: true)
-          .map((snapshot) => snapshot.data()?['familyId'] as String?);
+  Stream<String?> watchFamilyId(String uid) => _link(uid)
+      .snapshots(includeMetadataChanges: true)
+      .map((snapshot) => snapshot.data()?['familyId'] as String?);
 
   Stream<BazzerFamily?> watchFamily(String familyId) => _family(familyId)
       .snapshots(includeMetadataChanges: true)
@@ -137,24 +136,23 @@ class BazzerRepository {
   Stream<List<BazzerItem>> watchItems(
     String familyId, {
     required bool isBought,
-  }) =>
-      _family(familyId)
-          .collection('items')
-          .where('isBought', isEqualTo: isBought)
-          .snapshots(includeMetadataChanges: true)
-          .map((snapshot) {
-            final list = snapshot.docs
-                .map(
-                  (doc) => BazzerItem.fromMap(
-                    doc.data(),
-                    doc.id,
-                    hasPendingWrites: doc.metadata.hasPendingWrites,
-                  ),
-                )
-                .toList();
-            list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-            return list;
-          });
+  }) => _family(familyId)
+      .collection('items')
+      .where('isBought', isEqualTo: isBought)
+      .snapshots(includeMetadataChanges: true)
+      .map((snapshot) {
+        final list = snapshot.docs
+            .map(
+              (doc) => BazzerItem.fromMap(
+                doc.data(),
+                doc.id,
+                hasPendingWrites: doc.metadata.hasPendingWrites,
+              ),
+            )
+            .toList();
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return list;
+      });
 
   Stream<List<BazzerItem>> watchSecureItems(
     String familyId, {
@@ -186,8 +184,9 @@ class BazzerRepository {
   /// queued by Firestore on Android/iOS while offline.
   Future<BazzerFamily> createFamily() async {
     final user = currentUser;
-    final currentLink = await _link(user.uid)
-        .get(const GetOptions(source: Source.server));
+    final currentLink = await _link(
+      user.uid,
+    ).get(const GetOptions(source: Source.server));
     if (currentLink.data()?['familyId'] is String) {
       throw StateError('আপনি ইতিমধ্যে একটি পরিবারের বাজারে যুক্ত আছেন।');
     }
@@ -231,8 +230,9 @@ class BazzerRepository {
 
   Future<void> joinFamily(String rawCode) async {
     final user = currentUser;
-    final currentLink = await _link(user.uid)
-        .get(const GetOptions(source: Source.server));
+    final currentLink = await _link(
+      user.uid,
+    ).get(const GetOptions(source: Source.server));
     if (currentLink.data()?['familyId'] is String) {
       throw StateError('আপনি ইতিমধ্যে একটি পরিবারের বাজারে যুক্ত আছেন।');
     }
@@ -312,33 +312,29 @@ class BazzerRepository {
     if (trimmed.isEmpty || trimmed.length > 80) {
       throw FormatException('সদস্যের নাম ১–৮০ অক্ষরের মধ্যে লিখুন।');
     }
-    await _family(familyId)
-        .collection('members')
-        .doc(uid)
-        .update({'name': trimmed});
+    await _family(
+      familyId,
+    ).collection('members').doc(uid).update({'name': trimmed});
   }
 
   Future<void> setMemberAdmin(String familyId, String uid, bool admin) async {
-    await _family(familyId)
-        .collection('members')
-        .doc(uid)
-        .update({'role': admin ? 'admin' : 'member'});
+    await _family(familyId).collection('members').doc(uid).update({
+      'role': admin ? 'admin' : 'member',
+    });
   }
 
   Future<void> setMemberSecure(String familyId, String uid, bool secure) async {
-    await _family(familyId)
-        .collection('members')
-        .doc(uid)
-        .update({'secure': secure});
+    await _family(
+      familyId,
+    ).collection('members').doc(uid).update({'secure': secure});
   }
 
   DocumentReference<Map<String, dynamic>> _item(
     String familyId,
     BazzerItem item,
-  ) =>
-      _family(familyId)
-          .collection(item.isSecure ? 'secure_items' : 'items')
-          .doc(item.id);
+  ) => _family(
+    familyId,
+  ).collection(item.isSecure ? 'secure_items' : 'items').doc(item.id);
 
   Future<void> addItems(String familyId, List<BazzerItem> items) async {
     if (items.isEmpty) return;

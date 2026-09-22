@@ -128,9 +128,9 @@ class BazzerFamilyManagePage extends StatelessWidget {
   final BazzerRepository repository;
   final String currentUid;
 
-  void _message(BuildContext context, String message) =>
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(message)));
+  void _message(BuildContext context, String message) => ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(SnackBar(content: Text(message)));
 
   Future<void> _toggleJoin(BuildContext context, bool enabled) async {
     try {
