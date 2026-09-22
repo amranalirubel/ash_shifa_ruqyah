@@ -336,9 +336,20 @@ class BazzerRepository {
     familyId,
   ).collection(item.isSecure ? 'secure_items' : 'items').doc(item.id);
 
-  Future<void> addItems(String familyId, List<BazzerItem> items) async {
+  Future<void> addItems(
+    String familyId,
+    List<BazzerItem> items, {
+    String? addedBy,
+  }) async {
     if (items.isEmpty) return;
     final user = currentUser;
+    final requestedName = addedBy?.trim();
+    final displayName = requestedName != null && requestedName.isNotEmpty
+        ? requestedName
+        : _displayName;
+    final safeDisplayName = displayName.length > 80
+        ? displayName.substring(0, 80)
+        : displayName;
     final batch = _db.batch();
     for (final item in items) {
       if (item.name.trim().isEmpty ||
@@ -355,7 +366,7 @@ class BazzerRepository {
         'category': item.category,
         'isBought': false,
         'createdAt': FieldValue.serverTimestamp(),
-        'addedBy': _displayName,
+        'addedBy': safeDisplayName,
         'createdBy': user.uid,
         'boughtBy': null,
         'boughtAt': null,

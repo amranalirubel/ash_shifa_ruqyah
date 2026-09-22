@@ -103,7 +103,11 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
     );
   }
 
-  void _addManual(String familyId, {required bool secure}) {
+  void _addManual(
+    String familyId, {
+    required bool secure,
+    required String addedBy,
+  }) {
     final name = _nameController.text.trim();
     final number = _quantityController.text
         .trim()
@@ -137,14 +141,18 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
       createdAt: DateTime.now(),
       isSecure: secure,
     );
-    _queueWrite(_repository.addItems(familyId, [item]));
+    _queueWrite(_repository.addItems(familyId, [item], addedBy: addedBy));
     _nameController.clear();
     _quantityController.text = '1';
     setState(() => _manualStore = null);
     _message('তালিকায় যোগ হয়েছে। Offline হলে সংযোগ ফিরলে পাঠাবে।');
   }
 
-  Future<void> _toggleVoice(String familyId, {required bool secure}) async {
+  Future<void> _toggleVoice(
+    String familyId, {
+    required bool secure,
+    required String addedBy,
+  }) async {
     if (_isListening) {
       await _voice.stopListening();
       if (mounted) setState(() => _isListening = false);
@@ -158,7 +166,14 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
             _heard = VoiceParser.fixBanglaText(text);
             _isListening = false;
           });
-          unawaited(_reviewVoice(familyId, text, secure: secure));
+          unawaited(
+            _reviewVoice(
+              familyId,
+              text,
+              secure: secure,
+              addedBy: addedBy,
+            ),
+          );
         },
         onPartialText: (text) {
           if (mounted) setState(() => _heard = text);
@@ -178,6 +193,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
     String familyId,
     String text, {
     required bool secure,
+    required String addedBy,
   }) async {
     final parsed = VoiceParser.parsePreview(text);
     final chosen = await showModalBottomSheet<List<BazzerItem>>(
@@ -191,6 +207,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
       _repository.addItems(
         familyId,
         chosen.map((item) => item.copyWith(isSecure: secure)).toList(),
+        addedBy: addedBy,
       ),
     );
     _message('${chosen.length}টি আইটেম তালিকায় যোগ হয়েছে।');
@@ -346,7 +363,11 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
           ),
         ),
         floatingActionButton: FloatingActionButton.extended(
-          onPressed: () => _toggleVoice(family.id, secure: secure),
+          onPressed: () => _toggleVoice(
+            family.id,
+            secure: secure,
+            addedBy: member.name,
+          ),
           icon: Icon(_isListening ? Icons.stop_rounded : Icons.mic_rounded),
           label: Text(_isListening ? 'শুনছি—থামুন' : 'বাংলায় বলুন'),
         ),
@@ -492,8 +513,11 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
                           Align(
                             alignment: Alignment.centerRight,
                             child: FilledButton.icon(
-                              onPressed: () =>
-                                  _addManual(family.id, secure: secure),
+                              onPressed: () => _addManual(
+                                family.id,
+                                secure: secure,
+                                addedBy: member.name,
+                              ),
                               icon: const Icon(Icons.add),
                               label: const Text('তালিকায় যোগ করুন'),
                             ),
