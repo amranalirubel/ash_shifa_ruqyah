@@ -167,12 +167,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
             _isListening = false;
           });
           unawaited(
-            _reviewVoice(
-              familyId,
-              text,
-              secure: secure,
-              addedBy: addedBy,
-            ),
+            _reviewVoice(familyId, text, secure: secure, addedBy: addedBy),
           );
         },
         onPartialText: (text) {
@@ -363,11 +358,8 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
           ),
         ),
         floatingActionButton: FloatingActionButton.extended(
-          onPressed: () => _toggleVoice(
-            family.id,
-            secure: secure,
-            addedBy: member.name,
-          ),
+          onPressed: () =>
+              _toggleVoice(family.id, secure: secure, addedBy: member.name),
           icon: Icon(_isListening ? Icons.stop_rounded : Icons.mic_rounded),
           label: Text(_isListening ? 'শুনছি—থামুন' : 'বাংলায় বলুন'),
         ),
