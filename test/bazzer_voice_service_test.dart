@@ -4,6 +4,27 @@ import 'package:flutter_test/flutter_test.dart';
 import 'support/fake_bazzer.dart';
 
 void main() {
+  testWidgets('silent device startup failure is reported and can retry', (
+    tester,
+  ) async {
+    final engine = FakeVoiceRecognizer()..reportListening = false;
+    final service = VoiceService(recognizer: engine);
+    final errors = <String>[];
+    await service.startListening(
+      onFinalText: (_) {},
+      onListeningChanged: (_) {},
+      onError: errors.add,
+    );
+    await tester.pump(const Duration(seconds: 7));
+    expect(errors, hasLength(1));
+    engine.reportListening = true;
+    await service.startListening(
+      onFinalText: (_) {},
+      onListeningChanged: (_) {},
+    );
+    expect(engine.requestedLocales, hasLength(2));
+    await service.dispose();
+  });
   for (final locales in [
     <String>[],
     ['en-US'],

@@ -81,6 +81,7 @@ class VoiceService {
   List<String> _locales = const ['bn-BD', 'bn-IN'];
   String _lastText = '';
   Timer? _finishTimer;
+  Timer? _startTimer;
   void Function(bool)? _statusCallback;
   void Function(String)? _errorCallback;
   void Function(String)? _finalCallback;
@@ -160,12 +161,23 @@ class VoiceService {
     );
     if (_active && session == _session) {
       _statusCallback?.call(_recognizer.isListening);
+      if (!_recognizer.isListening) {
+        _startTimer?.cancel();
+        _startTimer = Timer(const Duration(seconds: 6), () {
+          if (_active && session == _session && !_recognizer.isListening) {
+            _fail(
+              'ভয়েস সেবা চালু হয়নি। ইন্টারনেট ও Microphone অনুমতি দেখে আবার চেষ্টা করুন।',
+            );
+          }
+        });
+      }
     }
   }
 
   void _onStatus(String status) {
     if (!_active) return;
     if (status == 'listening') {
+      _startTimer?.cancel();
       _statusCallback?.call(true);
     } else if (status == 'done' || status == 'notListening') {
       _statusCallback?.call(false);
@@ -183,6 +195,7 @@ class VoiceService {
     if (!_active) return;
     _active = false;
     _finishTimer?.cancel();
+    _startTimer?.cancel();
     _statusCallback?.call(false);
     if (_lastText.isNotEmpty) {
       _finalCallback?.call(_lastText);
@@ -223,6 +236,7 @@ class VoiceService {
     final session = ++_session;
     _localeIndex++;
     _finishTimer?.cancel();
+    _startTimer?.cancel();
     try {
       await _recognizer.cancel();
       _finishTimer?.cancel();
@@ -241,6 +255,7 @@ class VoiceService {
     if (!_active) return;
     _active = false;
     _finishTimer?.cancel();
+    _startTimer?.cancel();
     _statusCallback?.call(false);
     _errorCallback?.call(message);
   }
@@ -256,10 +271,18 @@ class VoiceService {
     _active = false;
     _starting = false;
     _finishTimer?.cancel();
+    _startTimer?.cancel();
     _statusCallback = null;
     _errorCallback = null;
     _finalCallback = null;
     _partialCallback = null;
-    if (_initialized) await _recognizer.cancel();
+    if (_initialized) {
+      try {
+        await _recognizer.cancel();
+      } catch (_) {
+        // Page callbacks are already detached. A device teardown failure
+        // must not stop back navigation or opening family information.
+      }
+    }
   }
 }

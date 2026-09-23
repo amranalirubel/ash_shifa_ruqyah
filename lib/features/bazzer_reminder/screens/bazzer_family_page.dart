@@ -536,10 +536,12 @@ class _BazzerFamilyManagePageState extends State<BazzerFamilyManagePage> {
                               : PopupMenuButton<String>(
                                   tooltip: '${member.name} পরিচালনা',
                                   onSelected: (choice) {
-                                    if (choice == 'name')
+                                    if (choice == 'name') {
                                       _rename(context, member);
-                                    if (choice == 'admin')
+                                    }
+                                    if (choice == 'admin') {
                                       _setAdmin(context, member);
+                                    }
                                     if (choice == 'secure') {
                                       _setSecure(context, member);
                                     }

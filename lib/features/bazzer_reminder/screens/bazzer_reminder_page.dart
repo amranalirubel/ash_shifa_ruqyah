@@ -344,8 +344,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
 
   Future<void> _openFamily(BazzerFamily family, BazzerMember member) async {
     FocusScope.of(context).unfocus();
-    await _voice.dispose();
-    if (!mounted) return;
+    unawaited(_voice.dispose());
     setState(() => _isListening = false);
     await Navigator.of(context).push(
       MaterialPageRoute<void>(

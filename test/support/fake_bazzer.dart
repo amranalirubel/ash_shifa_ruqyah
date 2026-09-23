@@ -9,6 +9,7 @@ class FakeVoiceRecognizer implements VoiceRecognizer {
   final requestedLocales = <String>[];
   bool failLocales = false;
   bool ready = true;
+  bool reportListening = true;
   int initializeCount = 0;
   int cancelCount = 0;
   @override
@@ -41,8 +42,8 @@ class FakeVoiceRecognizer implements VoiceRecognizer {
   }) async {
     requestedLocales.add(localeId);
     result = onResult;
-    isListening = true;
-    status('listening');
+    isListening = reportListening;
+    if (reportListening) status('listening');
   }
 
   @override
