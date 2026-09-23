@@ -30,6 +30,69 @@ service cloud.firestore {
           == true);
     }
 
+    function shoppingAdmin(familyId) {
+      return shoppingOwner(familyId) || (signedIn()
+        && exists(/databases/$(database)/documents/shopping_families/$(familyId)/members/$(request.auth.uid))
+        && get(/databases/$(database)/documents/shopping_families/$(familyId)/members/$(request.auth.uid)).data.active == true
+        && get(/databases/$(database)/documents/shopping_families/$(familyId)/members/$(request.auth.uid)).data.role == 'admin');
+    }
+
+    function shoppingSecureMember(familyId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/shopping_families/$(familyId)/members/$(request.auth.uid))
+        && get(/databases/$(database)/documents/shopping_families/$(familyId)/members/$(request.auth.uid)).data.active == true
+        && get(/databases/$(database)/documents/shopping_families/$(familyId)/members/$(request.auth.uid)).data.secure == true;
+    }
+
+    function validShoppingItem(data) {
+      return data.keys().hasAll([
+          'name', 'quantity', 'unit', 'category', 'isBought', 'createdAt',
+          'addedBy', 'createdBy', 'boughtBy', 'boughtAt'
+        ])
+        && data.keys().hasOnly([
+          'name', 'quantity', 'unit', 'category', 'isBought', 'createdAt',
+          'addedBy', 'createdBy', 'boughtBy', 'boughtAt'
+        ])
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 120
+        && data.quantity is number && data.quantity > 0 && data.quantity <= 1000
+        && data.unit in [
+          'কেজি', 'গ্রাম', 'লিটার', 'মিলি', 'টা', 'প্যাকেট',
+          'আঁটি', 'বোতল', 'ডজন', 'হালি'
+        ]
+        && data.category in ['মুদি', 'সবজি', 'মাছ/মাংস', 'অন্যান্য']
+        && data.addedBy is string && data.addedBy.size() <= 80;
+    }
+
+    function validShoppingCreate() {
+      return validShoppingItem(request.resource.data)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.isBought == false
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.boughtBy == null
+        && request.resource.data.boughtAt == null;
+    }
+
+    function shoppingAuthorEdit(familyId) {
+      return shoppingMember(familyId)
+        && resource.data.createdBy == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['name', 'quantity', 'unit', 'category'])
+        && validShoppingItem(request.resource.data);
+    }
+
+    function shoppingAdminBought(familyId) {
+      return shoppingAdmin(familyId)
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['isBought', 'boughtBy', 'boughtAt'])
+        && request.resource.data.isBought is bool
+        && request.resource.data.isBought != resource.data.isBought
+        && (request.resource.data.isBought == true
+          ? request.resource.data.boughtBy == request.auth.uid
+            && request.resource.data.boughtAt == request.time
+          : request.resource.data.boughtBy == null
+            && request.resource.data.boughtAt == null);
+    }
+
     function validProfileCreate(userId) {
       return isOwner(userId)
         && request.resource.data.keys().hasAll(['uid', 'name', 'email'])
@@ -137,7 +200,7 @@ service cloud.firestore {
         && request.resource.data.joiningEnabled == true
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time;
-      allow update: if shoppingOwner(familyId)
+      allow update: if shoppingAdmin(familyId)
         && request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['joiningEnabled', 'updatedAt'])
         && request.resource.data.joiningEnabled is bool
@@ -145,20 +208,21 @@ service cloud.firestore {
       allow delete: if false;
 
       match /members/{memberUid} {
-        allow get: if shoppingOwner(familyId)
+        allow get: if shoppingAdmin(familyId)
           || (signedIn() && request.auth.uid == memberUid);
-        allow list: if shoppingOwner(familyId);
+        allow list: if shoppingAdmin(familyId);
         allow create: if signedIn() && request.auth.uid == memberUid
           && request.resource.data.keys().hasAll([
-            'uid', 'name', 'inviteCode', 'active', 'role', 'joinedAt', 'removedAt'
+            'uid', 'name', 'inviteCode', 'active', 'role', 'secure', 'joinedAt', 'removedAt'
           ])
           && request.resource.data.keys().hasOnly([
-            'uid', 'name', 'inviteCode', 'active', 'role', 'joinedAt', 'removedAt'
+            'uid', 'name', 'inviteCode', 'active', 'role', 'secure', 'joinedAt', 'removedAt'
           ])
           && request.resource.data.uid == memberUid
           && request.resource.data.name is string
           && request.resource.data.name.size() <= 80
           && request.resource.data.role == 'member'
+          && request.resource.data.secure == false
           && request.resource.data.active == true
           && request.resource.data.removedAt == null
           && request.resource.data.joinedAt == request.time
@@ -170,60 +234,48 @@ service cloud.firestore {
             == true
           && get(/databases/$(database)/documents/shopping_families/$(familyId)).data.inviteCode
             == request.resource.data.inviteCode;
-        allow update: if shoppingOwner(familyId)
+        allow update: if shoppingAdmin(familyId)
           && resource.data.uid == memberUid
           && memberUid != request.auth.uid
           && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['active', 'removedAt'])
+            .hasOnly(['active', 'removedAt', 'name', 'role', 'secure'])
           && request.resource.data.active is bool
-          && (request.resource.data.active == true
-            ? request.resource.data.removedAt == null
-            : request.resource.data.removedAt == request.time);
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 80
+          && request.resource.data.role in ['member', 'admin']
+          && (request.resource.data.role == resource.data.role
+            || request.resource.data.role != 'admin'
+            || request.resource.data.active == true)
+          && (!request.resource.data.keys().hasAny(['secure'])
+            || request.resource.data.secure is bool)
+          && (request.resource.data.active == resource.data.active
+            ? request.resource.data.removedAt == resource.data.removedAt
+            : (request.resource.data.active == true
+              ? request.resource.data.removedAt == null
+              : request.resource.data.removedAt == request.time));
         allow delete: if false;
       }
 
       match /items/{itemId} {
         allow get, list: if shoppingMember(familyId);
-        allow create: if shoppingMember(familyId)
-          && request.resource.data.keys().hasAll([
-            'name', 'quantity', 'unit', 'category', 'isBought', 'createdAt',
-            'addedBy', 'createdBy', 'boughtBy', 'boughtAt'
-          ])
-          && request.resource.data.keys().hasOnly([
-            'name', 'quantity', 'unit', 'category', 'isBought', 'createdAt',
-            'addedBy', 'createdBy', 'boughtBy', 'boughtAt'
-          ])
-          && request.resource.data.name is string
-          && request.resource.data.name.size() > 0
-          && request.resource.data.name.size() <= 120
-          && request.resource.data.quantity is number
-          && request.resource.data.quantity > 0
-          && request.resource.data.quantity <= 1000
-          && request.resource.data.unit in [
-            'কেজি', 'গ্রাম', 'লিটার', 'মিলি', 'টা', 'প্যাকেট',
-            'আঁটি', 'বোতল', 'ডজন', 'হালি'
-          ]
-          && request.resource.data.category in [
-            'মুদি', 'সবজি', 'মাছ/মাংস', 'অন্যান্য'
-          ]
-          && request.resource.data.createdBy == request.auth.uid
-          && request.resource.data.addedBy is string
-          && request.resource.data.addedBy.size() <= 80
-          && request.resource.data.isBought == false
-          && request.resource.data.createdAt == request.time
-          && request.resource.data.boughtBy == null
-          && request.resource.data.boughtAt == null;
-        allow update: if shoppingOwner(familyId)
-          && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['isBought', 'boughtBy', 'boughtAt'])
-          && request.resource.data.isBought is bool
-          && request.resource.data.isBought != resource.data.isBought
-          && (request.resource.data.isBought == true
-            ? request.resource.data.boughtBy == request.auth.uid
-              && request.resource.data.boughtAt == request.time
-            : request.resource.data.boughtBy == null
-              && request.resource.data.boughtAt == null);
-        allow delete: if false;
+        allow create: if shoppingMember(familyId) && validShoppingCreate();
+        allow update: if shoppingAuthorEdit(familyId) || shoppingAdminBought(familyId);
+        allow delete: if shoppingMember(familyId)
+          && resource.data.createdBy == request.auth.uid;
+      }
+
+      // Secure items use a separate collection, so old normal lists keep their
+      // query and normal members cannot list a private item by accident.
+      match /secure_items/{itemId} {
+        allow get, list: if shoppingAdmin(familyId)
+          || (shoppingMember(familyId)
+            && resource.data.createdBy == request.auth.uid);
+        allow create: if (shoppingAdmin(familyId) || shoppingSecureMember(familyId))
+          && validShoppingCreate();
+        allow update: if shoppingAuthorEdit(familyId) || shoppingAdminBought(familyId);
+        allow delete: if shoppingMember(familyId)
+          && resource.data.createdBy == request.auth.uid;
       }
     }
 
