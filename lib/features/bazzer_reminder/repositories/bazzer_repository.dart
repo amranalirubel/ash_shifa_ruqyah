@@ -77,6 +77,9 @@ class BazzerRepository {
   final FirebaseFirestore _db;
   final FirebaseAuth _auth;
 
+  User? get signedInUser => _auth.currentUser;
+  Stream<User?> authStateChanges() => _auth.authStateChanges();
+
   User get currentUser {
     final user = _auth.currentUser;
     if (user == null) throw StateError('পরিবারে বাজারের জন্য আগে লগইন করুন।');

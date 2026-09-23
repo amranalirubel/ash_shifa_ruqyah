@@ -116,7 +116,111 @@ class _BazzerFamilySetupState extends State<BazzerFamilySetup> {
   }
 }
 
-class BazzerFamilyManagePage extends StatelessWidget {
+/// Regular members can inspect their own profile without querying the private
+/// member directory (which the server exposes only to family admins).
+class BazzerFamilyInfoPage extends StatefulWidget {
+  const BazzerFamilyInfoPage({
+    super.key,
+    required this.family,
+    required this.member,
+    required this.repository,
+  });
+
+  final BazzerFamily family;
+  final BazzerMember member;
+  final BazzerRepository repository;
+
+  @override
+  State<BazzerFamilyInfoPage> createState() => _BazzerFamilyInfoPageState();
+}
+
+class _BazzerFamilyInfoPageState extends State<BazzerFamilyInfoPage> {
+  late final _memberStream = widget.repository.watchOwnMember(
+    widget.family.id,
+    widget.member.uid,
+  );
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('আমার পরিবার')),
+    body: StreamBuilder<BazzerMember?>(
+      stream: _memberStream,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const Center(
+            child: Text('পরিবারের তথ্য পাওয়া যায়নি। আবার খুলে দেখুন।'),
+          );
+        }
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final member = snapshot.data;
+        if (member == null || !member.active) {
+          return const Center(
+            child: Text(
+              'আপনার সদস্যপদ এখন সক্রিয় নেই। পরিবারের Admin-এর সঙ্গে যোগাযোগ করুন।',
+            ),
+          );
+        }
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text(
+              widget.family.name,
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.person_outline),
+              title: Text(member.name),
+              subtitle: Text(member.isAdmin ? 'Admin' : 'পরিবারের সদস্য'),
+            ),
+            ListTile(
+              leading: Icon(
+                member.secure ? Icons.lock_outline : Icons.group_outlined,
+              ),
+              title: Text(member.secure ? 'Secure' : 'Normal'),
+              subtitle: Text(
+                member.secure
+                    ? 'আপনার নতুন বাজারের আইটেম শুধু আপনি ও পরিবারের Admin দেখবেন।'
+                    : 'আপনার নতুন বাজারের আইটেম পরিবারের সক্রিয় সদস্যরা দেখবেন।',
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'নিজের লেখা আইটেম পরিবর্তন বা মুছতে তালিকার পাশে তিন বিন্দু চাপুন।',
+              ),
+            ),
+            if (member.isAdmin)
+              FilledButton.icon(
+                onPressed: () => Navigator.of(context).pushReplacement(
+                  MaterialPageRoute<void>(
+                    builder: (_) => BazzerFamilyManagePage(
+                      family: widget.family,
+                      repository: widget.repository,
+                      currentUid: member.uid,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.manage_accounts_outlined),
+                label: const Text('পরিবার পরিচালনা'),
+              )
+            else
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'সদস্যের নাম, Admin-এর অধিকার ও Normal/Secure পরিবর্তন করতে পরিবারের Admin-কে বলুন। যিনি পরিবার তৈরি করেছেন তিনি মূল Admin।',
+                ),
+              ),
+          ],
+        );
+      },
+    ),
+  );
+}
+
+class BazzerFamilyManagePage extends StatefulWidget {
   const BazzerFamilyManagePage({
     super.key,
     required this.family,
@@ -127,6 +231,20 @@ class BazzerFamilyManagePage extends StatelessWidget {
   final BazzerFamily family;
   final BazzerRepository repository;
   final String currentUid;
+
+  @override
+  State<BazzerFamilyManagePage> createState() => _BazzerFamilyManagePageState();
+}
+
+class _BazzerFamilyManagePageState extends State<BazzerFamilyManagePage> {
+  BazzerFamily get family => widget.family;
+  BazzerRepository get repository => widget.repository;
+  String get currentUid => widget.currentUid;
+  late final _familyStream = repository.watchFamily(family.id);
+  late final _membersStream = repository.watchMembers(family.id);
+  late final _ownMemberStream = family.ownerUid == currentUid
+      ? null
+      : repository.watchOwnMember(family.id, currentUid);
 
   void _message(BuildContext context, String message) => ScaffoldMessenger.of(
     context,
@@ -280,12 +398,47 @@ class BazzerFamilyManagePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (_ownMemberStream == null) return _managementScreen(context);
+    return StreamBuilder<BazzerMember?>(
+      stream: _ownMemberStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('পরিবার পরিচালনা')),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasError ||
+            snapshot.data?.active != true ||
+            snapshot.data?.isAdmin != true) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('পরিবার পরিচালনা')),
+            body: const Center(
+              child: Text(
+                'পরিবার পরিচালনার জন্য সক্রিয় Admin-এর অধিকার প্রয়োজন।',
+              ),
+            ),
+          );
+        }
+        return _managementScreen(context);
+      },
+    );
+  }
+
+  Widget _managementScreen(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(title: const Text('পরিবার পরিচালনা')),
       body: StreamBuilder<BazzerFamily?>(
-        stream: repository.watchFamily(family.id),
+        stream: _familyStream,
         builder: (context, familySnapshot) {
+          if (familySnapshot.hasError) {
+            return const Center(
+              child: Text(
+                'পরিবারের তথ্য পড়ার অনুমতি নেই। মূল Admin-এর সঙ্গে যোগাযোগ করুন।',
+              ),
+            );
+          }
           final current = familySnapshot.data ?? family;
           return ListView(
             padding: const EdgeInsets.all(16),
@@ -345,12 +498,15 @@ class BazzerFamilyManagePage extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               StreamBuilder<List<BazzerMember>>(
-                stream: repository.watchMembers(family.id),
+                stream: _membersStream,
                 builder: (context, snapshot) {
                   if (snapshot.hasError) {
                     return const Text(
                       'সদস্য দেখানো যায়নি। Firestore rules পরীক্ষা করুন।',
                     );
+                  }
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
                   }
                   final members = snapshot.data ?? const <BazzerMember>[];
                   return Column(
@@ -375,53 +531,63 @@ class BazzerFamilyManagePage extends StatelessWidget {
                               member.active ? 'যুক্ত আছেন' : 'বাদ দেওয়া হয়েছে',
                             ].join(' • '),
                           ),
-                          trailing: PopupMenuButton<String>(
-                            tooltip: '${member.name} পরিচালনা',
-                            onSelected: (choice) {
-                              if (choice == 'name') _rename(context, member);
-                              if (choice == 'admin') _setAdmin(context, member);
-                              if (choice == 'secure') {
-                                _setSecure(context, member);
-                              }
-                              if (choice == 'active') {
-                                _setActive(context, member, !member.active);
-                              }
-                            },
-                            itemBuilder: (_) => [
-                              if (member.uid != currentUid)
-                                const PopupMenuItem(
-                                  value: 'name',
-                                  child: Text('নাম পরিবর্তন'),
+                          trailing: member.uid == currentUid
+                              ? null
+                              : PopupMenuButton<String>(
+                                  tooltip: '${member.name} পরিচালনা',
+                                  onSelected: (choice) {
+                                    if (choice == 'name')
+                                      _rename(context, member);
+                                    if (choice == 'admin')
+                                      _setAdmin(context, member);
+                                    if (choice == 'secure') {
+                                      _setSecure(context, member);
+                                    }
+                                    if (choice == 'active') {
+                                      _setActive(
+                                        context,
+                                        member,
+                                        !member.active,
+                                      );
+                                    }
+                                  },
+                                  itemBuilder: (_) => [
+                                    if (member.uid != currentUid)
+                                      const PopupMenuItem(
+                                        value: 'name',
+                                        child: Text('নাম পরিবর্তন'),
+                                      ),
+                                    if (member.active &&
+                                        member.uid != currentUid)
+                                      PopupMenuItem(
+                                        value: 'admin',
+                                        child: Text(
+                                          member.isAdmin
+                                              ? 'Admin সরিয়ে দিন'
+                                              : 'Admin করুন',
+                                        ),
+                                      ),
+                                    if (member.active &&
+                                        member.uid != currentUid)
+                                      PopupMenuItem(
+                                        value: 'secure',
+                                        child: Text(
+                                          member.secure
+                                              ? 'Normal করুন'
+                                              : 'Secure করুন',
+                                        ),
+                                      ),
+                                    if (member.uid != currentUid)
+                                      PopupMenuItem(
+                                        value: 'active',
+                                        child: Text(
+                                          member.active
+                                              ? 'সদস্য বাদ দিন'
+                                              : 'আবার যুক্ত করুন',
+                                        ),
+                                      ),
+                                  ],
                                 ),
-                              if (member.active && member.uid != currentUid)
-                                PopupMenuItem(
-                                  value: 'admin',
-                                  child: Text(
-                                    member.isAdmin
-                                        ? 'Admin সরিয়ে দিন'
-                                        : 'Admin করুন',
-                                  ),
-                                ),
-                              if (member.active && member.uid != currentUid)
-                                PopupMenuItem(
-                                  value: 'secure',
-                                  child: Text(
-                                    member.secure
-                                        ? 'Normal করুন'
-                                        : 'Secure করুন',
-                                  ),
-                                ),
-                              if (member.uid != currentUid)
-                                PopupMenuItem(
-                                  value: 'active',
-                                  child: Text(
-                                    member.active
-                                        ? 'সদস্য বাদ দিন'
-                                        : 'আবার যুক্ত করুন',
-                                  ),
-                                ),
-                            ],
-                          ),
                         ),
                     ],
                   );

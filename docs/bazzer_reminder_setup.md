@@ -54,13 +54,36 @@ removed member's previously downloaded cache cannot be erased remotely;
 queued offline writes made after removal may appear temporarily on that phone
 and then be rejected when connectivity returns.
 
-The speech recognizer is the device's Bengali recognizer. Bengali must be
-installed as an available locale; its quality and offline ability vary by
-device. The app never silently switches to another recognition language.
+The speech recognizer is the device's speech service. The app explicitly
+requests Bengali even if the service omits Bengali from its locale list or
+cannot return that list. Online recognition is allowed; a separate Bengali
+language-pack installation is not an app prerequisite. If one Bengali locale
+is rejected, the other Bengali locale is tried once (bn-BD / bn-IN). The app
+never silently switches to English or the phone's default language. Actual
+recognition still requires microphone permission and a working service, and
+may need internet. Accuracy and offline support depend on the device service.
 One spoken sentence is split into separate products and quantities, including
 `আধা কেজি`, `হাফ কেজি` and `৫০০ গ্রাম`. Every recognized item must be
 reviewed and can be edited or omitted before it is shared. Unknown fragments
 are shown explicitly instead of being guessed.
+
+Tap the family card or the top-right family icon to open family information.
+The owner and active delegated Admins open member management. Ordinary
+members open their own current name, role and Normal/Secure information;
+they do not query the admin-only member directory or gain management rights.
+If the card says "পরিবারের সদস্য", that account is a member, not the family's
+creator. Only the actual owner or an existing Admin can grant Admin access.
+
+After the voice/navigation update, fully stop and run the app again (hot
+reload cannot apply AndroidManifest.xml or Info.plist changes). On Android
+the manifest declares internet access and the RecognitionService query.
+On iOS the microphone and speech permission descriptions are included.
+Regression tests cover missing/erroring locale lists, Bengali-only retry,
+stop/final-result delivery, reopening, microphone denial, member/owner card
+navigation, search/filter rebuilds, and a small phone with keyboard insets.
+These tests use a fake recognizer and do not certify recognition on a real
+phone. Test "আলু আধা কেজি তেল এক লিটার", stop/reopen, and both account roles
+on the intended device before distributing the update.
 
 Before merge, review the Flutter and disposable security-rules CI checks.
 After merging and deploying rules to the intended Firebase project, test on
