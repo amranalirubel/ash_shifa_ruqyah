@@ -502,6 +502,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
                               const SizedBox(width: 10),
                               Expanded(
                                 child: DropdownButtonFormField<String>(
+                                  isExpanded: true,
                                   initialValue: _unit,
                                   decoration: const InputDecoration(
                                     labelText: 'একক',
@@ -524,6 +525,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
                           ),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
+                            isExpanded: true,
                             key: ValueKey(_manualStore),
                             initialValue: _manualStore ?? '',
                             decoration: const InputDecoration(
