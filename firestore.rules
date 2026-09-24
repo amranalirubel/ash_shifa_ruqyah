@@ -51,7 +51,8 @@ service cloud.firestore {
         ])
         && data.keys().hasOnly([
           'name', 'quantity', 'unit', 'category', 'isBought', 'createdAt',
-          'addedBy', 'createdBy', 'boughtBy', 'boughtAt'
+          'addedBy', 'createdBy', 'boughtBy', 'boughtAt',
+          'noteDate', 'clientCreatedAt', 'pricePaisa'
         ])
         && data.name is string && data.name.size() > 0 && data.name.size() <= 120
         && data.quantity is number && data.quantity > 0 && data.quantity <= 1000
@@ -60,7 +61,13 @@ service cloud.firestore {
           'আঁটি', 'বোতল', 'ডজন', 'হালি'
         ]
         && data.category in ['মুদি', 'সবজি', 'মাছ/মাংস', 'অন্যান্য']
-        && data.addedBy is string && data.addedBy.size() <= 80;
+        && data.addedBy is string && data.addedBy.size() <= 80
+        && (!data.keys().hasAny(['pricePaisa']) || data.pricePaisa == null
+          || (data.pricePaisa is int && data.pricePaisa >= 0 && data.pricePaisa <= 100000000))
+        && (!data.keys().hasAny(['noteDate'])
+          || (data.noteDate is string
+            && data.noteDate.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$')))
+        && (!data.keys().hasAny(['clientCreatedAt']) || data.clientCreatedAt is timestamp);
     }
 
     function validShoppingCreate() {
@@ -91,6 +98,13 @@ service cloud.firestore {
             && request.resource.data.boughtAt == request.time
           : request.resource.data.boughtBy == null
             && request.resource.data.boughtAt == null);
+    }
+
+    function shoppingPriceEdit(familyId) {
+      return shoppingMember(familyId)
+        && (shoppingAdmin(familyId) || resource.data.createdBy == request.auth.uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pricePaisa'])
+        && validShoppingItem(request.resource.data);
     }
 
     function validProfileCreate(userId) {
@@ -260,7 +274,8 @@ service cloud.firestore {
       match /items/{itemId} {
         allow get, list: if shoppingMember(familyId);
         allow create: if shoppingMember(familyId) && validShoppingCreate();
-        allow update: if shoppingAuthorEdit(familyId) || shoppingAdminBought(familyId);
+        allow update: if shoppingAuthorEdit(familyId) || shoppingAdminBought(familyId)
+          || shoppingPriceEdit(familyId);
         allow delete: if shoppingMember(familyId)
           && resource.data.createdBy == request.auth.uid;
       }
@@ -273,7 +288,8 @@ service cloud.firestore {
             && resource.data.createdBy == request.auth.uid);
         allow create: if (shoppingAdmin(familyId) || shoppingSecureMember(familyId))
           && validShoppingCreate();
-        allow update: if shoppingAuthorEdit(familyId) || shoppingAdminBought(familyId);
+        allow update: if shoppingAuthorEdit(familyId) || shoppingAdminBought(familyId)
+          || shoppingPriceEdit(familyId);
         allow delete: if shoppingMember(familyId)
           && resource.data.createdBy == request.auth.uid;
       }

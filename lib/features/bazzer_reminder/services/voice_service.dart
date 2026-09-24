@@ -52,7 +52,7 @@ class _DeviceVoiceRecognizer implements VoiceRecognizer {
         partialResults: true,
         cancelOnError: true,
         listenFor: const Duration(seconds: 45),
-        pauseFor: const Duration(seconds: 4),
+        pauseFor: const Duration(seconds: 2),
       ),
     );
   }
@@ -74,6 +74,8 @@ class VoiceService {
 
   final VoiceRecognizer _recognizer;
   bool _initialized = false;
+  bool _localesLoaded = false;
+  String? _preferredLocale;
   bool _starting = false;
   bool _active = false;
   int _session = 0;
@@ -121,19 +123,31 @@ class VoiceService {
       }
       // Locale enumeration can be incomplete even when online Bengali
       // recognition is available. Always try an explicit Bengali request.
-      var available = <String>[];
-      try {
-        available = await _recognizer.locales();
-      } catch (_) {
-        // Ask the recognizer directly using the explicit Bengali locale.
+      if (!_localesLoaded) {
+        var available = <String>[];
+        try {
+          available = await _recognizer.locales().timeout(
+            const Duration(milliseconds: 500),
+            onTimeout: () => <String>[],
+          );
+        } catch (_) {
+          // Ask the recognizer directly using the explicit Bengali locale.
+        }
+        final bengali = available
+            .map((id) => id.replaceAll('_', '-').toLowerCase())
+            .toSet();
+        _locales = bengali.contains('bn-in') && !bengali.contains('bn-bd')
+            ? ['bn-IN', 'bn-BD']
+            : ['bn-BD', 'bn-IN'];
+        _localesLoaded = true;
       }
       if (session != _session || !_active) return;
-      final bengali = available
-          .map((id) => id.replaceAll('_', '-').toLowerCase())
-          .toSet();
-      _locales = bengali.contains('bn-in') && !bengali.contains('bn-bd')
-          ? ['bn-IN', 'bn-BD']
-          : ['bn-BD', 'bn-IN'];
+      if (_preferredLocale != null) {
+        _locales = [
+          _preferredLocale!,
+          _preferredLocale == 'bn-BD' ? 'bn-IN' : 'bn-BD',
+        ];
+      }
       await _listen(session);
     } catch (_) {
       if (session == _session) {
@@ -151,7 +165,10 @@ class VoiceService {
       localeId: _locales[_localeIndex],
       onResult: (text, isFinal) {
         if (!_active || session != _session) return;
-        if (text.trim().isNotEmpty) _lastText = text.trim();
+        if (text.trim().isNotEmpty) {
+          _lastText = text.trim();
+          _preferredLocale = _locales[_localeIndex];
+        }
         if (isFinal) {
           _finish();
         } else {
@@ -188,7 +205,7 @@ class VoiceService {
 
   void _scheduleFinish() {
     _finishTimer?.cancel();
-    _finishTimer = Timer(const Duration(milliseconds: 1500), _finish);
+    _finishTimer = Timer(const Duration(milliseconds: 350), _finish);
   }
 
   void _finish() {
@@ -262,8 +279,23 @@ class VoiceService {
 
   Future<void> stopListening() async {
     if (!_active) return;
-    await _recognizer.stop();
-    if (_active) _scheduleFinish();
+    if (_lastText.isNotEmpty) {
+      // The user explicitly accepted the displayed partial text. Open review
+      // immediately, without waiting for another network recognition result.
+      _finish();
+      try {
+        await _recognizer.cancel();
+      } catch (_) {
+        // The text is already available for review; cleanup cannot erase it.
+      }
+      return;
+    }
+    _scheduleFinish();
+    try {
+      await _recognizer.stop();
+    } catch (_) {
+      if (_active) _finish();
+    }
   }
 
   Future<void> dispose() async {

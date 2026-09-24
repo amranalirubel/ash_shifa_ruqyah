@@ -78,6 +78,39 @@ Admin gets a working management button, while a removed member loses access.
 If the card says "পরিবারের সদস্য", that account is a member, not the family's
 creator. Only the actual owner or an existing Admin can grant Admin access.
 
+## Daily notes, prices and faster voice
+
+Deploy the updated `firestore.rules` before using this version. New items
+include `noteDate`, `clientCreatedAt` and nullable integer `pricePaisa`; older
+items without these fields remain readable and editable. No data migration or
+seeding is needed. `createdAt` remains a server timestamp for auditing.
+Bangladesh calendar dates (UTC+06) define a family note. Offline items retain
+their original note date and ordering when a later server timestamp arrives.
+
+Each item offers Tk 10/20/30/40/50/100/200 and a custom price, including paisa.
+This is the total price for that item's whole quantity, not a per-kg rate.
+Tapping a preset replaces the price; repeated taps do not add it again. Authors
+and Admins may set or clear prices; unrelated members cannot edit them.
+An optimistic total is displayed immediately and rejected writes roll back.
+Missing prices are shown separately from zero-price items.
+
+Within each date, items are grouped by shop and sorted oldest first, with a
+stable ID tie-break. Each row shows the cumulative amount of the displayed
+items. A filtered or bought-only view labels its subtotal and separately shows
+the full day's accessible total. Secure items contribute only for users who
+already have permission to read them. Bought/undo does not change a day's
+overall total. Editing a price or deleting an item recomputes later totals.
+
+Voice parsing now uses quantity/unit endings as product boundaries, including
+unknown multiword products: `রসুন ১ কেজি আদা ১ কেজি` produces two items.
+Ambiguous amounts still require review. Explicit stop opens review immediately
+from the displayed partial text. Automatic stop keeps only a 350ms grace period
+for a late final result; the recognizer receives a two-second silence hint.
+Locale discovery is cached and capped at 500ms; a working Bengali locale is
+remembered. Actual microphone/network recognition speed depends on the phone.
+Both bought/pending tabs share two subscriptions, and adding items returns to
+the pending list with search/store filters cleared so the new entries appear.
+
 After the voice/navigation update, fully stop and run the app again (hot
 reload cannot apply AndroidManifest.xml or Info.plist changes). On Android
 the manifest declares internet access and the RecognitionService query.

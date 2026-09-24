@@ -100,7 +100,8 @@ void main() {
       );
       engine.result('আলু হাফ কেজি', false);
       await service.stopListening();
-      await tester.pump(const Duration(seconds: 2));
+      // Explicit stop must open review immediately, without pumping a delay.
+      expect(heard, ['আলু হাফ কেজি']);
       engine.result('আলু হাফ কেজি', true);
       expect(heard, ['আলু হাফ কেজি']);
       await service.dispose();
@@ -127,6 +128,7 @@ void main() {
     lateOldResult('পুরোনো লেখা', true);
     engine.result('তেল এক লিটার', true);
     expect(engine.initializeCount, 1);
+    expect(engine.localeCount, 1);
     expect(oldResults, isEmpty);
     expect(newResults, ['তেল এক লিটার']);
     await service.dispose();
@@ -143,6 +145,27 @@ void main() {
     );
     expect(engine.requestedLocales, isEmpty);
     expect(errors.single, contains('Microphone'));
+    await service.dispose();
+  });
+
+  testWidgets('automatic end waits only 350ms for a late final result', (
+    tester,
+  ) async {
+    final engine = FakeVoiceRecognizer();
+    final service = VoiceService(recognizer: engine);
+    final heard = <String>[];
+    await service.startListening(
+      onFinalText: heard.add,
+      onListeningChanged: (_) {},
+    );
+    engine.result('রসুন ১ কেজি আদা ১ কেজি', false);
+    engine.status('notListening');
+    await tester.pump(const Duration(milliseconds: 349));
+    expect(heard, isEmpty);
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(heard, ['রসুন ১ কেজি আদা ১ কেজি']);
+    engine.result('দেরিতে আসা লেখা', true);
+    expect(heard, hasLength(1));
     await service.dispose();
   });
 }

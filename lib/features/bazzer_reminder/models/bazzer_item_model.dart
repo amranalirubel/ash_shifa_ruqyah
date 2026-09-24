@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../utils/bazzer_format.dart';
+
 class BazzerItem {
   const BazzerItem({
     required this.id,
@@ -14,6 +16,8 @@ class BazzerItem {
     this.boughtBy,
     this.hasPendingWrites = false,
     this.isSecure = false,
+    this.noteDate,
+    this.pricePaisa,
   });
 
   final String id;
@@ -28,6 +32,11 @@ class BazzerItem {
   final String? boughtBy;
   final bool hasPendingWrites;
   final bool isSecure;
+  final String? noteDate;
+  final int? pricePaisa;
+  String get dayKey => noteDate != null && validBazzerDayKey(noteDate!)
+      ? noteDate!
+      : bazzerDayKey(createdAt);
 
   factory BazzerItem.fromMap(
     Map<String, dynamic> map,
@@ -35,7 +44,7 @@ class BazzerItem {
     bool hasPendingWrites = false,
     bool isSecure = false,
   }) {
-    final rawDate = map['createdAt'];
+    final rawDate = map['clientCreatedAt'] ?? map['createdAt'];
     DateTime date = DateTime.now();
     if (rawDate is DateTime) {
       date = rawDate;
@@ -58,6 +67,8 @@ class BazzerItem {
       boughtBy: map['boughtBy'] as String?,
       hasPendingWrites: hasPendingWrites,
       isSecure: isSecure,
+      noteDate: map['noteDate'] as String?,
+      pricePaisa: map['pricePaisa'] is int ? map['pricePaisa'] as int : null,
     );
   }
 
@@ -70,6 +81,8 @@ class BazzerItem {
     'createdAt': createdAt.toIso8601String(),
     'addedBy': addedBy,
     'createdBy': createdBy,
+    'noteDate': dayKey,
+    'pricePaisa': pricePaisa,
   };
 
   BazzerItem copyWith({
@@ -78,6 +91,10 @@ class BazzerItem {
     String? createdBy,
     bool? hasPendingWrites,
     bool? isSecure,
+    int? pricePaisa,
+    bool clearPrice = false,
+    DateTime? createdAt,
+    String? noteDate,
   }) => BazzerItem(
     id: id,
     name: name,
@@ -85,11 +102,13 @@ class BazzerItem {
     unit: unit,
     category: category,
     isBought: isBought ?? this.isBought,
-    createdAt: createdAt,
+    createdAt: createdAt ?? this.createdAt,
     addedBy: addedBy ?? this.addedBy,
     createdBy: createdBy ?? this.createdBy,
     boughtBy: boughtBy,
     hasPendingWrites: hasPendingWrites ?? this.hasPendingWrites,
     isSecure: isSecure ?? this.isSecure,
+    noteDate: noteDate ?? this.noteDate,
+    pricePaisa: clearPrice ? null : pricePaisa ?? this.pricePaisa,
   );
 }

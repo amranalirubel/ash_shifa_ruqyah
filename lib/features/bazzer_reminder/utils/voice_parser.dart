@@ -18,6 +18,7 @@ class VoiceParser {
   static const _units = {
     'কেজি': 'কেজি',
     'কিলো': 'কেজি',
+    'কিলোগ্রাম': 'কেজি',
     'গ্রাম': 'গ্রাম',
     'লিটার': 'লিটার',
     'মিলি': 'মিলি',
@@ -68,6 +69,11 @@ class VoiceParser {
     'dim': 'ডিম',
     'soap': 'সাবান',
   };
+  static final _quantityPattern = RegExp(
+    '(\\d+(?:\\.\\d+)?)\\s*('
+    '${(_units.keys.toList()..sort((a, b) => b.length.compareTo(a.length))).map(RegExp.escape).join('|')}'
+    ')(?=\\s|\$)',
+  );
 
   static String fixBanglaText(String text) {
     var result = text.toLowerCase().trim();
@@ -80,7 +86,7 @@ class VoiceParser {
     for (final alias in StoreCategory.aliases.entries) {
       result = result.replaceAll(alias.key, alias.value);
     }
-    return result.replaceAll(RegExp(r'\s+'), ' ');
+    return result.replaceAll(RegExp(r'[ \t\r]+'), ' ');
   }
 
   static String normalizeNumbers(String text) {
@@ -126,6 +132,12 @@ class VoiceParser {
       final clean = clause.trim();
       if (clean.isEmpty) continue;
 
+      final amounts = _quantityPattern.allMatches(clean).toList();
+      if (amounts.isNotEmpty) {
+        _parseMeasuredClause(clean, amounts, items, needsReview);
+        continue;
+      }
+
       final matches = namePattern.allMatches(clean).toList();
       if (matches.isEmpty) {
         _parseFragment(clean, null, items, needsReview);
@@ -153,17 +165,47 @@ class VoiceParser {
   static List<BazzerItem> parseVoice(String rawText) =>
       parsePreview(rawText).items;
 
+  static void _parseMeasuredClause(
+    String clause,
+    List<RegExpMatch> amounts,
+    List<BazzerItem> items,
+    List<String> needsReview,
+  ) {
+    // A complete amount ends an item, even when the product is not in our
+    // category dictionary. Do not split "oil 1 litre 2 bottles" into guesses.
+    if (amounts.length == 1 &&
+        clause.substring(0, amounts.first.start).trim().isEmpty) {
+      _parseFragment(clause, null, items, needsReview);
+      return;
+    }
+    var start = 0;
+    final fragments = <String>[];
+    for (final amount in amounts) {
+      final name = clause.substring(start, amount.start).trim();
+      if (name.isEmpty || RegExp(r'\d').hasMatch(name)) {
+        needsReview.add(clause);
+        return;
+      }
+      fragments.add(clause.substring(start, amount.end).trim());
+      start = amount.end;
+    }
+    final tail = clause.substring(start).trim();
+    if (tail.isNotEmpty && _unexpectedWords(tail, '', null)) {
+      needsReview.add(clause);
+      return;
+    }
+    for (final fragment in fragments) {
+      _parseFragment(fragment, null, items, needsReview);
+    }
+  }
+
   static void _parseFragment(
     String fragment,
     String? knownName,
     List<BazzerItem> items,
     List<String> needsReview,
   ) {
-    const unitPattern =
-        r'মিলিলিটার|প্যাকেট|লিটার|বোতল|কেজি|কিলো|গ্রাম|মিলি|ডজন|হালি|প্যাক|আঁটি|আটি|পিস|টা|টি';
-    final quantities = RegExp(
-      '(\\d+(?:\\.\\d+)?)\\s*($unitPattern)(?=\\s|\$)',
-    ).allMatches(fragment).toList();
+    final quantities = _quantityPattern.allMatches(fragment).toList();
     final extraNumbers = RegExp(r'\d+(?:\.\d+)?').allMatches(fragment).length;
     if (quantities.length > 1 || extraNumbers > 1) {
       needsReview.add(fragment.trim());

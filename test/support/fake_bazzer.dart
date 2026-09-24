@@ -13,6 +13,8 @@ class FakeVoiceRecognizer implements VoiceRecognizer {
   bool ready = true;
   bool reportListening = true;
   int initializeCount = 0;
+  int localeCount = 0;
+  Completer<List<String>>? localeGate;
   int cancelCount = 0;
   @override
   bool isListening = false;
@@ -33,6 +35,8 @@ class FakeVoiceRecognizer implements VoiceRecognizer {
 
   @override
   Future<List<String>> locales() async {
+    localeCount++;
+    if (localeGate != null) return localeGate!.future;
     if (failLocales) throw StateError('device locale enumeration failed');
     return availableLocales;
   }
@@ -74,6 +78,11 @@ class FakeBazzerRepository extends Fake implements BazzerRepository {
   final bool owner;
   final streamCalls = <String, int>{};
   final savedItems = <BazzerItem>[];
+  final items = <BazzerItem>[];
+  final priceWrites = <(String, int?)>[];
+  Completer<void>? priceGate;
+  bool failPrice = false;
+  final _itemChanges = StreamController<List<BazzerItem>>.broadcast();
   final managementWrites = <(String, String, Object)>[];
   final _familyChanges = StreamController<BazzerFamily?>.broadcast();
   final _memberChanges = StreamController<BazzerMember?>.broadcast();
@@ -131,6 +140,7 @@ class FakeBazzerRepository extends Fake implements BazzerRepository {
       _familyChanges.close(),
       _memberChanges.close(),
       _directoryChanges.close(),
+      _itemChanges.close(),
     ]);
   }
 
@@ -212,17 +222,84 @@ class FakeBazzerRepository extends Fake implements BazzerRepository {
   }
 
   @override
-  Stream<List<BazzerItem>> watchItems(
-    String familyId, {
-    required bool isBought,
-  }) => _stream('items/$isBought', () => []);
+  Stream<List<BazzerItem>> watchItems(String familyId, {bool? isBought}) {
+    List<BazzerItem> select(List<BazzerItem> values) => values
+        .where(
+          (item) =>
+              !item.isSecure && (isBought == null || item.isBought == isBought),
+        )
+        .toList();
+    return _stream(
+      'items/$isBought',
+      () => select(items),
+      _itemChanges.stream.map(select),
+    );
+  }
 
   @override
   Stream<List<BazzerItem>> watchSecureItems(
     String familyId, {
-    required bool isBought,
+    bool? isBought,
     String? authorUid,
-  }) => _stream('secure/$isBought/$authorUid', () => []);
+  }) {
+    List<BazzerItem> select(List<BazzerItem> values) => values
+        .where(
+          (item) =>
+              item.isSecure &&
+              (isBought == null || item.isBought == isBought) &&
+              (authorUid == null || item.createdBy == authorUid),
+        )
+        .toList();
+    return _stream(
+      'secure/$isBought/$authorUid',
+      () => select(items),
+      _itemChanges.stream.map(select),
+    );
+  }
+
+  void updateItems(List<BazzerItem> updated) {
+    items
+      ..clear()
+      ..addAll(updated);
+    _itemChanges.add(List.of(items));
+  }
+
+  @override
+  Future<void> setPrice(String familyId, BazzerItem item, int? paisa) async {
+    priceWrites.add((item.id, paisa));
+    if (priceGate != null) await priceGate!.future;
+    if (failPrice) throw StateError('price write rejected');
+    updateItems([
+      for (final existing in items)
+        if (existing.id == item.id && existing.isSecure == item.isSecure)
+          existing.copyWith(pricePaisa: paisa, clearPrice: paisa == null)
+        else
+          existing,
+    ]);
+  }
+
+  @override
+  Future<void> setBought(String familyId, BazzerItem item, bool bought) async {
+    updateItems([
+      for (final existing in items)
+        if (existing.id == item.id && existing.isSecure == item.isSecure)
+          existing.copyWith(isBought: bought)
+        else
+          existing,
+    ]);
+  }
+
+  @override
+  Future<void> deleteItem(String familyId, BazzerItem item) async {
+    updateItems(
+      items
+          .where(
+            (existing) =>
+                existing.id != item.id || existing.isSecure != item.isSecure,
+          )
+          .toList(),
+    );
+  }
 
   @override
   Future<void> addItems(
@@ -232,5 +309,11 @@ class FakeBazzerRepository extends Fake implements BazzerRepository {
   }) async {
     savedItems.addAll(items);
     savedAuthor = addedBy;
+    updateItems([
+      ...this.items,
+      ...items.map(
+        (item) => item.copyWith(createdBy: signedInUser.uid, addedBy: addedBy),
+      ),
+    ]);
   }
 }

@@ -228,13 +228,18 @@ void main() {
     await tester.tap(find.text('বাংলায় বলুন'));
     await tester.pumpAndSettle();
     expect(engine.requestedLocales, ['bn-BD']);
-    engine.result('আলু আধা কেজি তেল এক লিটার', true);
+    engine.result('রসুন ১ কেজি আদা ১ কেজি', false);
+    await tester.tap(find.text('শুনছি—থামুন'));
     await tester.pumpAndSettle();
     expect(find.byType(VoiceReviewSheet), findsOneWidget);
     await tester.tap(find.text('2টি যোগ করুন'));
     await tester.pumpAndSettle();
-    expect(repository.savedItems.map((item) => item.name), ['আলু', 'তেল']);
-    expect(repository.savedItems.first.quantity, 0.5);
+    expect(repository.savedItems.map((item) => item.name), ['রসুন', 'আদা']);
+    expect(repository.savedItems.map((item) => item.quantity), [1, 1]);
+    expect(
+      repository.savedItems.map((item) => item.dayKey).toSet(),
+      hasLength(1),
+    );
     expect(repository.savedAuthor, 'মায়ের নাম');
     expect(tester.takeException(), isNull);
   });
