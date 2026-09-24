@@ -116,8 +116,75 @@ class _BazzerFamilySetupState extends State<BazzerFamilySetup> {
   }
 }
 
-/// Regular members can inspect their own profile without querying the private
-/// member directory (which the server exposes only to family admins).
+/// Active members can already read the family document, including its code.
+/// Reuse its code and joining state without querying the admin-only directory.
+class _FamilyCodeCard extends StatelessWidget {
+  const _FamilyCodeCard({required this.family});
+
+  final BazzerFamily family;
+
+  Future<void> _copyCode(BuildContext context) async {
+    try {
+      await Clipboard.setData(ClipboardData(text: family.inviteCode));
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('কোড কপি হয়েছে।')));
+      }
+    } on PlatformException {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('কপি হয়নি। কোডটি চেপে ধরে কপি করুন।')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('পরিবারের কোড', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          SelectableText(
+            family.inviteCode,
+            textDirection: TextDirection.ltr,
+            style: const TextStyle(
+              fontSize: 22,
+              letterSpacing: 2,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            key: const ValueKey('bazzer-copy-family-code'),
+            onPressed: () => _copyCode(context),
+            icon: const Icon(Icons.copy_rounded),
+            label: const Text('কোড কপি করুন'),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            family.joiningEnabled
+                ? 'নতুন সদস্য যুক্ত করা চালু আছে।'
+                : 'নতুন সদস্য যুক্ত করা বন্ধ আছে। Admin চালু করলে এই কোড ব্যবহার করা যাবে।',
+            key: const ValueKey('bazzer-family-joining-status'),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'শুধু পরিবারের সদস্যকে কোড দিন। তিনি নিজের অ্যাকাউন্টে '
+            'লগইন করে পরিবারের বাজার খুলে এই কোড দিয়ে যুক্ত হবেন।',
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Members can copy the family code and inspect their live role without
+/// querying the private member directory, which is reserved for admins.
 class BazzerFamilyInfoPage extends StatefulWidget {
   const BazzerFamilyInfoPage({
     super.key,
@@ -135,6 +202,7 @@ class BazzerFamilyInfoPage extends StatefulWidget {
 }
 
 class _BazzerFamilyInfoPageState extends State<BazzerFamilyInfoPage> {
+  late final _familyStream = widget.repository.watchFamily(widget.family.id);
   late final _memberStream = widget.repository.watchOwnMember(
     widget.family.id,
     widget.member.uid,
@@ -162,61 +230,87 @@ class _BazzerFamilyInfoPageState extends State<BazzerFamilyInfoPage> {
             ),
           );
         }
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Text(
-              widget.family.name,
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: const Icon(Icons.person_outline),
-              title: Text(member.name),
-              subtitle: Text(member.isAdmin ? 'Admin' : 'পরিবারের সদস্য'),
-            ),
-            ListTile(
-              leading: Icon(
-                member.secure ? Icons.lock_outline : Icons.group_outlined,
-              ),
-              title: Text(member.secure ? 'Secure' : 'Normal'),
-              subtitle: Text(
-                member.secure
-                    ? 'আপনার নতুন বাজারের আইটেম শুধু আপনি ও পরিবারের Admin দেখবেন।'
-                    : 'আপনার নতুন বাজারের আইটেম পরিবারের সক্রিয় সদস্যরা দেখবেন।',
-              ),
-            ),
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                'নিজের লেখা আইটেম পরিবর্তন বা মুছতে তালিকার পাশে তিন বিন্দু চাপুন।',
-              ),
-            ),
-            if (member.isAdmin)
-              FilledButton.icon(
-                onPressed: () => Navigator.of(context).pushReplacement(
-                  MaterialPageRoute<void>(
-                    builder: (_) => BazzerFamilyManagePage(
-                      family: widget.family,
-                      repository: widget.repository,
-                      currentUid: member.uid,
-                    ),
-                  ),
-                ),
-                icon: const Icon(Icons.manage_accounts_outlined),
-                label: const Text('পরিবার পরিচালনা'),
-              )
-            else
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Text(
-                  'সদস্যের নাম, Admin-এর অধিকার ও Normal/Secure পরিবর্তন করতে পরিবারের Admin-কে বলুন। যিনি পরিবার তৈরি করেছেন তিনি মূল Admin।',
-                ),
-              ),
-          ],
+        return StreamBuilder<BazzerFamily?>(
+          stream: _familyStream,
+          builder: (context, familySnapshot) {
+            if (familySnapshot.hasError) {
+              return const Center(
+                child: Text('পরিবারের তথ্য পাওয়া যায়নি। আবার খুলে দেখুন।'),
+              );
+            }
+            if (familySnapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final family = familySnapshot.data;
+            if (family == null) {
+              return const Center(child: Text('পরিবার পাওয়া যায়নি।'));
+            }
+            return _familyDetails(context, family, member);
+          },
         );
       },
     ),
+  );
+
+  Widget _familyDetails(
+    BuildContext context,
+    BazzerFamily family,
+    BazzerMember member,
+  ) => ListView(
+    padding: const EdgeInsets.all(16),
+    children: [
+      Text(family.name, style: Theme.of(context).textTheme.headlineSmall),
+      const SizedBox(height: 16),
+      _FamilyCodeCard(family: family),
+      const SizedBox(height: 8),
+      ListTile(
+        leading: const Icon(Icons.person_outline),
+        title: Text(member.name),
+        subtitle: Text(member.isAdmin ? 'Admin' : 'পরিবারের সদস্য'),
+      ),
+      ListTile(
+        leading: Icon(
+          member.secure ? Icons.lock_outline : Icons.group_outlined,
+        ),
+        title: Text(member.secure ? 'Secure' : 'Normal'),
+        subtitle: Text(
+          member.secure
+              ? 'আপনার নতুন বাজারের আইটেম শুধু আপনি ও পরিবারের Admin দেখবেন।'
+              : 'আপনার নতুন বাজারের আইটেম পরিবারের সক্রিয় সদস্যরা দেখবেন।',
+        ),
+      ),
+      const Padding(
+        padding: EdgeInsets.all(16),
+        child: Text(
+          'নিজের লেখা আইটেম পরিবর্তন বা মুছতে তালিকার পাশে তিন বিন্দু চাপুন।',
+        ),
+      ),
+      if (member.isAdmin)
+        FilledButton.icon(
+          onPressed: () => Navigator.of(context).pushReplacement(
+            MaterialPageRoute<void>(
+              builder: (_) => BazzerFamilyManagePage(
+                family: family,
+                repository: widget.repository,
+                currentUid: member.uid,
+              ),
+            ),
+          ),
+          icon: const Icon(Icons.manage_accounts_outlined),
+          label: const Text('পরিবার পরিচালনা'),
+        )
+      else
+        const Padding(
+          padding: EdgeInsets.all(16),
+          child: Text(
+            'আপনি এই পরিবারের সদস্য হিসেবে যুক্ত আছেন। সদস্যের নাম, '
+            'Admin-এর অধিকার ও Normal/Secure পরিবর্তন করেন পরিবারের Admin। '
+            'যে অ্যাকাউন্ট দিয়ে পরিবার তৈরি হয়েছিল, সেই অ্যাকাউন্টে '
+            'লগইন করলে পরিচালনার বাটন পাবেন। Admin আপনাকে অধিকার '
+            'দিলেও এখানেই পরিচালনার বাটন দেখাবে।',
+          ),
+        ),
+    ],
   );
 }
 
@@ -443,46 +537,7 @@ class _BazzerFamilyManagePageState extends State<BazzerFamilyManagePage> {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'পরিবারের কোড',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      SelectableText(
-                        current.inviteCode,
-                        style: const TextStyle(
-                          fontSize: 22,
-                          letterSpacing: 2,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: () async {
-                          await Clipboard.setData(
-                            ClipboardData(text: current.inviteCode),
-                          );
-                          if (context.mounted) {
-                            _message(context, 'কোড কপি হয়েছে।');
-                          }
-                        },
-                        icon: const Icon(Icons.copy_rounded),
-                        label: const Text('কপি করুন'),
-                      ),
-                      Text(
-                        'শুধু পরিচিত পরিবারের সদস্যদের কোড দিন।',
-                        style: TextStyle(color: colors.onSurfaceVariant),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              _FamilyCodeCard(family: current),
               SwitchListTile.adaptive(
                 title: const Text('নতুন সদস্য যুক্ত হতে পারবে'),
                 subtitle: const Text(

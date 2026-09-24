@@ -374,7 +374,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
           title: const Text('পরিবারের বাজার'),
           actions: [
             IconButton(
-              tooltip: admin ? 'পরিবারের সদস্য ও কোড' : 'আমার পরিবারের তথ্য',
+              tooltip: admin ? 'পরিবারের সদস্য ও কোড' : 'পরিবারের কোড ও তথ্য',
               onPressed: () => _openFamily(family, member),
               icon: const Icon(Icons.manage_accounts_rounded),
             ),
@@ -434,7 +434,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
                           subtitle: Text(
                             admin
                                 ? 'সদস্য ও কোড পরিচালনা করতে চাপুন'
-                                : 'আপনার নাম ও পরিবারের তথ্য দেখতে চাপুন',
+                                : 'পরিবারের কোড দেখতে ও কপি করতে চাপুন',
                             style: TextStyle(color: colors.onPrimaryContainer),
                           ),
                           trailing: Icon(

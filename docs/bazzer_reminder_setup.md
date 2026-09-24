@@ -69,8 +69,12 @@ are shown explicitly instead of being guessed.
 
 Tap the family card or the top-right family icon to open family information.
 The owner and active delegated Admins open member management. Ordinary
-members open their own current name, role and Normal/Secure information;
-they do not query the admin-only member directory or gain management rights.
+members can see and copy the family's invite code, see whether joining is
+enabled, and inspect their current name, role and Normal/Secure information.
+The code comes from the family document they already have permission to read;
+the admin-only member directory and management permissions are unchanged.
+The joining state and role remain live while the page is open: a newly promoted
+Admin gets a working management button, while a removed member loses access.
 If the card says "পরিবারের সদস্য", that account is a member, not the family's
 creator. Only the actual owner or an existing Admin can grant Admin access.
 

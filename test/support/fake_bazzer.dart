@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:ash_shifa_ruqyah/features/bazzer_reminder/models/bazzer_item_model.dart';
 import 'package:ash_shifa_ruqyah/features/bazzer_reminder/repositories/bazzer_repository.dart';
 import 'package:ash_shifa_ruqyah/features/bazzer_reminder/services/voice_service.dart';
@@ -72,23 +74,51 @@ class FakeBazzerRepository extends Fake implements BazzerRepository {
   final bool owner;
   final streamCalls = <String, int>{};
   final savedItems = <BazzerItem>[];
+  final managementWrites = <(String, String, Object)>[];
+  final _familyChanges = StreamController<BazzerFamily?>.broadcast();
+  final _memberChanges = StreamController<BazzerMember?>.broadcast();
+  final _directoryChanges = StreamController<List<BazzerMember>>.broadcast();
   String? savedAuthor;
-  final family = const BazzerFamily(
+  var family = const BazzerFamily(
     id: 'family',
     ownerUid: 'owner',
     inviteCode: 'ABCDEFGHJKLM',
     joiningEnabled: true,
     name: 'আমাদের পরিবার',
   );
-  final member = const BazzerMember(
+  var member = const BazzerMember(
     uid: 'member',
     name: 'মায়ের নাম',
     active: true,
   );
 
-  Stream<T> _stream<T>(String name, T value) {
+  Stream<T> _stream<T>(String name, T value, [Stream<T>? changes]) {
     streamCalls.update(name, (count) => count + 1, ifAbsent: () => 1);
-    return Stream.value(value);
+    return changes == null ? Stream.value(value) : _live(value, changes);
+  }
+
+  Stream<T> _live<T>(T initial, Stream<T> changes) async* {
+    yield initial;
+    yield* changes;
+  }
+
+  void updateFamily(BazzerFamily updated) {
+    family = updated;
+    _familyChanges.add(updated);
+  }
+
+  void updateMember(BazzerMember updated) {
+    member = updated;
+    _memberChanges.add(updated);
+    _directoryChanges.add([updated]);
+  }
+
+  Future<void> dispose() async {
+    await Future.wait([
+      _familyChanges.close(),
+      _memberChanges.close(),
+      _directoryChanges.close(),
+    ]);
   }
 
   @override
@@ -102,15 +132,71 @@ class FakeBazzerRepository extends Fake implements BazzerRepository {
 
   @override
   Stream<BazzerFamily?> watchFamily(String familyId) =>
-      _stream('family', family);
+      _stream('family', family, _familyChanges.stream);
 
   @override
   Stream<BazzerMember?> watchOwnMember(String familyId, String uid) =>
-      _stream('own', member);
+      _stream('own', member, _memberChanges.stream);
 
   @override
   Stream<List<BazzerMember>> watchMembers(String familyId) =>
-      _stream('members', [member]);
+      _stream('members', [member], _directoryChanges.stream);
+
+  @override
+  Future<void> setJoiningEnabled(String familyId, bool enabled) async {
+    managementWrites.add(('joining', familyId, enabled));
+    updateFamily(
+      BazzerFamily(
+        id: family.id,
+        ownerUid: family.ownerUid,
+        inviteCode: family.inviteCode,
+        joiningEnabled: enabled,
+        name: family.name,
+      ),
+    );
+  }
+
+  @override
+  Future<void> renameMember(String familyId, String uid, String name) async {
+    managementWrites.add(('name', uid, name));
+    updateMember(
+      BazzerMember(
+        uid: member.uid,
+        name: name,
+        active: member.active,
+        role: member.role,
+        secure: member.secure,
+      ),
+    );
+  }
+
+  @override
+  Future<void> setMemberAdmin(String familyId, String uid, bool admin) async {
+    managementWrites.add(('admin', uid, admin));
+    updateMember(
+      BazzerMember(
+        uid: member.uid,
+        name: member.name,
+        active: member.active,
+        role: admin ? 'admin' : 'member',
+        secure: member.secure,
+      ),
+    );
+  }
+
+  @override
+  Future<void> setMemberSecure(String familyId, String uid, bool secure) async {
+    managementWrites.add(('secure', uid, secure));
+    updateMember(
+      BazzerMember(
+        uid: member.uid,
+        name: member.name,
+        active: member.active,
+        role: member.role,
+        secure: secure,
+      ),
+    );
+  }
 
   @override
   Stream<List<BazzerItem>> watchItems(
