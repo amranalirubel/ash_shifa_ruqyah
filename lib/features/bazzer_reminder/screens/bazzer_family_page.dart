@@ -261,6 +261,23 @@ class _BazzerFamilyInfoPageState extends State<BazzerFamilyInfoPage> {
     children: [
       Text(family.name, style: Theme.of(context).textTheme.headlineSmall),
       const SizedBox(height: 16),
+      if (member.isAdmin) ...[
+        FilledButton.icon(
+          key: const ValueKey('bazzer-family-manage'),
+          onPressed: () => Navigator.of(context).pushReplacement(
+            MaterialPageRoute<void>(
+              builder: (_) => BazzerFamilyManagePage(
+                family: family,
+                repository: widget.repository,
+                currentUid: member.uid,
+              ),
+            ),
+          ),
+          icon: const Icon(Icons.manage_accounts_outlined),
+          label: const Text('পরিবার পরিচালনা'),
+        ),
+        const SizedBox(height: 8),
+      ],
       _FamilyCodeCard(family: family),
       const SizedBox(height: 8),
       ListTile(
@@ -285,21 +302,7 @@ class _BazzerFamilyInfoPageState extends State<BazzerFamilyInfoPage> {
           'নিজের লেখা আইটেম পরিবর্তন বা মুছতে তালিকার পাশে তিন বিন্দু চাপুন।',
         ),
       ),
-      if (member.isAdmin)
-        FilledButton.icon(
-          onPressed: () => Navigator.of(context).pushReplacement(
-            MaterialPageRoute<void>(
-              builder: (_) => BazzerFamilyManagePage(
-                family: family,
-                repository: widget.repository,
-                currentUid: member.uid,
-              ),
-            ),
-          ),
-          icon: const Icon(Icons.manage_accounts_outlined),
-          label: const Text('পরিবার পরিচালনা'),
-        )
-      else
+      if (!member.isAdmin)
         const Padding(
           padding: EdgeInsets.all(16),
           child: Text(

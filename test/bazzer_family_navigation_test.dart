@@ -174,10 +174,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.ensureVisible(
-      find.widgetWithText(FilledButton, 'পরিবার পরিচালনা'),
-    );
-    await tester.tap(find.widgetWithText(FilledButton, 'পরিবার পরিচালনা'));
+    final manageButton = find.byKey(const ValueKey('bazzer-family-manage'));
+    expect(manageButton, findsOneWidget);
+    await tester.ensureVisible(manageButton);
+    await tester.tap(manageButton);
     await tester.pumpAndSettle();
     expect(find.byType(BazzerFamilyManagePage), findsOneWidget);
     expect(find.text('ABCDEFGHJKLM'), findsOneWidget);
