@@ -16,6 +16,7 @@ import {
   deleteDoc,
   query,
   serverTimestamp,
+  Timestamp,
   updateDoc,
   where,
   writeBatch,
@@ -117,6 +118,27 @@ try {
   await assertFails(updateDoc(doc(owner, item), { name: 'Owner cannot edit another author' }));
   await assertFails(deleteDoc(doc(viewer, item)));
   await assertFails(deleteDoc(doc(owner, item)));
+  // An item's total price is replaceable by its author or a family Admin.
+  // Amounts are integer paisa; role, content and immutable note dates stay protected.
+  await assertSucceeds(updateDoc(doc(member, item), { pricePaisa: 1000 }));
+  await assertSucceeds(updateDoc(doc(owner, item), { pricePaisa: 2500 }));
+  await assertFails(updateDoc(doc(viewer, item), { pricePaisa: 5000 }));
+  await assertFails(updateDoc(doc(stranger, item), { pricePaisa: 5000 }));
+  for (const pricePaisa of [-1, 1.5, '1000', 100000001]) {
+    await assertFails(updateDoc(doc(owner, item), { pricePaisa }));
+  }
+  await assertSucceeds(updateDoc(doc(member, item), { pricePaisa: null }));
+  await assertSucceeds(updateDoc(doc(member, item), { pricePaisa: 0 }));
+  const datedItem = `${family}/items/dated`;
+  await assertSucceeds(setDoc(doc(member, datedItem), {
+    ...add, pricePaisa: null, noteDate: '2026-09-24',
+    clientCreatedAt: Timestamp.fromDate(new Date('2026-09-24T10:00:00Z')),
+  }));
+  await assertFails(updateDoc(doc(member, datedItem), { noteDate: '2026-09-25' }));
+  await assertFails(updateDoc(doc(owner, datedItem), { pricePaisa: 1000, createdBy: 'owner' }));
+  await assertFails(setDoc(doc(member, `${family}/items/invalid-date`), {
+    ...add, noteDate: '2026-13-99',
+  }));
   await assertSucceeds(setDoc(doc(member, `${family}/items/delete-me`), add));
   await assertSucceeds(deleteDoc(doc(member, `${family}/items/delete-me`)));
   await assertSucceeds(getDocs(query(
@@ -151,6 +173,9 @@ try {
   await assertSucceeds(getDoc(doc(owner, secureItem)));
   await assertSucceeds(updateDoc(doc(member, secureItem), { name: 'আমার পরিবর্তন' }));
   await assertFails(updateDoc(doc(viewer, secureItem), { name: 'অন্য পরিবর্তন' }));
+  await assertSucceeds(updateDoc(doc(member, secureItem), { pricePaisa: 1000 }));
+  await assertSucceeds(updateDoc(doc(owner, secureItem), { pricePaisa: 2000 }));
+  await assertFails(updateDoc(doc(viewer, secureItem), { pricePaisa: 3000 }));
   await assertFails(setDoc(doc(viewer, `${family}/secure_items/no-access`), {
     ...add, createdBy: 'viewer',
   }));
@@ -181,6 +206,7 @@ try {
     active: false, removedAt: serverTimestamp(),
   }));
   await assertFails(getDoc(doc(member, item)));
+  await assertFails(updateDoc(doc(member, item), { pricePaisa: 1000 }));
   await assertFails(setDoc(doc(member, `${family}/items/item-2`), {
     ...add, name: 'আলু',
   }));

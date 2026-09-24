@@ -201,6 +201,7 @@ class _VoiceEditDialogState extends State<_VoiceEditDialog> {
             decoration: const InputDecoration(labelText: 'পরিমাণ'),
           ),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: _unit,
             decoration: const InputDecoration(labelText: 'একক'),
             items: [
@@ -221,6 +222,7 @@ class _VoiceEditDialogState extends State<_VoiceEditDialog> {
             onChanged: (value) => setState(() => _unit = value ?? _unit),
           ),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: _category,
             decoration: const InputDecoration(labelText: 'দোকান'),
             items: [
