@@ -92,14 +92,27 @@ class FakeBazzerRepository extends Fake implements BazzerRepository {
     active: true,
   );
 
-  Stream<T> _stream<T>(String name, T value, [Stream<T>? changes]) {
+  Stream<T> _stream<T>(
+    String name,
+    T Function() current, [
+    Stream<T>? changes,
+  ]) {
     streamCalls.update(name, (count) => count + 1, ifAbsent: () => 1);
-    return changes == null ? Stream.value(value) : _live(value, changes);
-  }
-
-  Stream<T> _live<T>(T initial, Stream<T> changes) async* {
-    yield initial;
-    yield* changes;
+    // Firestore snapshot streams support new subscriptions after a route or
+    // permission change and immediately deliver the current document again.
+    return Stream<T>.multi((listener) {
+      listener.add(current());
+      if (changes == null) {
+        listener.close();
+        return;
+      }
+      final subscription = changes.listen(
+        listener.add,
+        onError: listener.addError,
+        onDone: listener.close,
+      );
+      listener.onCancel = subscription.cancel;
+    }, isBroadcast: true);
   }
 
   void updateFamily(BazzerFamily updated) {
@@ -125,22 +138,22 @@ class FakeBazzerRepository extends Fake implements BazzerRepository {
   User get signedInUser => FakeBazzerUser(owner ? 'owner' : 'member');
 
   @override
-  Stream<User?> authStateChanges() => _stream('auth', signedInUser);
+  Stream<User?> authStateChanges() => _stream('auth', () => signedInUser);
 
   @override
-  Stream<String?> watchFamilyId(String uid) => _stream('link', 'family');
+  Stream<String?> watchFamilyId(String uid) => _stream('link', () => 'family');
 
   @override
   Stream<BazzerFamily?> watchFamily(String familyId) =>
-      _stream('family', family, _familyChanges.stream);
+      _stream('family', () => family, _familyChanges.stream);
 
   @override
   Stream<BazzerMember?> watchOwnMember(String familyId, String uid) =>
-      _stream('own', member, _memberChanges.stream);
+      _stream('own', () => member, _memberChanges.stream);
 
   @override
   Stream<List<BazzerMember>> watchMembers(String familyId) =>
-      _stream('members', [member], _directoryChanges.stream);
+      _stream('members', () => [member], _directoryChanges.stream);
 
   @override
   Future<void> setJoiningEnabled(String familyId, bool enabled) async {
@@ -202,14 +215,14 @@ class FakeBazzerRepository extends Fake implements BazzerRepository {
   Stream<List<BazzerItem>> watchItems(
     String familyId, {
     required bool isBought,
-  }) => _stream('items/$isBought', []);
+  }) => _stream('items/$isBought', () => []);
 
   @override
   Stream<List<BazzerItem>> watchSecureItems(
     String familyId, {
     required bool isBought,
     String? authorUid,
-  }) => _stream('secure/$isBought/$authorUid', []);
+  }) => _stream('secure/$isBought/$authorUid', () => []);
 
   @override
   Future<void> addItems(
