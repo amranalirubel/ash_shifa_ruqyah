@@ -7,7 +7,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('unit endings split garlic and ginger from the reported recording', () {
-    for (final text in ['রসুন ১ কেজি আদা ১ কেজি', 'রসুন এক কেজি আদা এক কেজি']) {
+    for (final text in [
+      'রসুন ১ কেজি আদা ১ কেজি',
+      'রসুন এক কেজি আদা এক কেজি',
+      'রসুন ১ কেজি আদা ১ কেজি.',
+    ]) {
       final result = VoiceParser.parsePreview(text);
       expect(result.needsReview, isEmpty);
       expect(result.items.map((item) => item.name), ['রসুন', 'আদা']);

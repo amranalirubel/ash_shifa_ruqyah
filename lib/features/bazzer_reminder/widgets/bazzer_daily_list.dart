@@ -45,14 +45,15 @@ class BazzerDailyList extends StatelessWidget {
             (filterStore == null || item.category == filterStore) &&
             item.name.toLowerCase().contains(search.toLowerCase()),
       );
-      if (shown.isNotEmpty)
+      if (shown.isNotEmpty) {
         visible.add((note, BazzerDailyNote(note.day, shown)));
+      }
     }
     return ListView(
       key: PageStorageKey('bazzer-daily-$bought'),
       padding: const EdgeInsets.fromLTRB(14, 6, 14, 110),
       children: [
-        if (filters != null) filters!,
+        ?filters,
         if (visible.isEmpty)
           Padding(
             padding: const EdgeInsets.all(24),

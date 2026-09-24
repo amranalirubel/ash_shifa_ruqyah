@@ -127,7 +127,7 @@ class VoiceParser {
     );
 
     for (final clause in text.split(
-      RegExp(r'[,;।!?\n]|\s+(?:এবং|আর|তারপর)\s+'),
+      RegExp(r'[,;।!?\n]|\.(?!\d)|\s+(?:এবং|আর|তারপর)\s+'),
     )) {
       final clean = clause.trim();
       if (clean.isEmpty) continue;

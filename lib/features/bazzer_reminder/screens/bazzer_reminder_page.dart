@@ -221,15 +221,14 @@ class _BazzerReminderPageState extends State<BazzerReminderPage>
     _queueWrite(
       _repository.addItems(
         familyId,
-        chosen
-            .map(
-              (item) => item.copyWith(
-                isSecure: secure,
-                createdAt: now,
-                noteDate: bazzerDayKey(now),
-              ),
-            )
-            .toList(),
+        List.generate(
+          chosen.length,
+          (index) => chosen[index].copyWith(
+            isSecure: secure,
+            createdAt: now.add(Duration(microseconds: index)),
+            noteDate: bazzerDayKey(now),
+          ),
+        ),
         addedBy: addedBy,
       ),
     );
