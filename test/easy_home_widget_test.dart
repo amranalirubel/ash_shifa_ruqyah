@@ -113,11 +113,25 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField).at(1), '১০০.০১');
+      await tester.enterText(
+        find.byKey(const ValueKey('utility-amount')),
+        '১০০.০১',
+      );
       await tester.tap(find.text('ভাগ হিসাব করুন'));
       await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('utility-copy')),
+        150,
+      );
       expect(find.text('ভাগের হিসাব কপি'), findsOneWidget);
-      await tester.enterText(find.byType(TextField).at(1), '২০০');
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('utility-amount')),
+        -150,
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('utility-amount')),
+        '২০০',
+      );
       await tester.pump();
       expect(find.text('ভাগের হিসাব কপি'), findsNothing);
       await tester.binding.handlePopRoute();
@@ -245,6 +259,7 @@ void main() {
       await mount(tester, repo);
       await tester.tap(find.byType(NavigationDestination).at(2));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('রসিদ / ইতিহাস'));
       await tester.ensureVisible(find.text('রসিদ / ইতিহাস'));
       await tester.tap(find.text('রসিদ / ইতিহাস'));
       await tester.pumpAndSettle();

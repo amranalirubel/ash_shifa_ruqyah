@@ -455,6 +455,7 @@ class _UtilityToolState extends State<_UtilityTool> {
           const SizedBox(height: 16),
           EasyCard(child: SelectableText(_resultText!)),
           TextButton.icon(
+            key: const ValueKey('utility-copy'),
             onPressed: () async {
               await Clipboard.setData(ClipboardData(text: _resultText!));
               if (context.mounted) {
