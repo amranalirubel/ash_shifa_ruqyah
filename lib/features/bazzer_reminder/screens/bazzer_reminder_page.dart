@@ -5,34 +5,49 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/bazzer_item_model.dart';
+import '../models/bazzer_expense.dart';
 import '../repositories/bazzer_repository.dart';
 import '../services/voice_service.dart';
 import '../utils/store_category.dart';
 import '../utils/voice_parser.dart';
-import '../widgets/bazzer_item_tile.dart';
+import '../utils/bazzer_receipt.dart';
+import '../widgets/bazzer_daily_list.dart';
+import '../widgets/bazzer_price_panel.dart';
 import 'bazzer_family_page.dart';
 import 'bazzer_edit_item_dialog.dart';
 import 'voice_review_sheet.dart';
+import 'bazzer_price_dialog.dart';
+import 'bazzer_monthly_expenses_page.dart';
 
 class BazzerReminderPage extends StatefulWidget {
-  const BazzerReminderPage({super.key});
+  const BazzerReminderPage({super.key, this.repository, this.voice});
+
+  final BazzerRepository? repository;
+  final VoiceService? voice;
 
   @override
   State<BazzerReminderPage> createState() => _BazzerReminderPageState();
 }
 
-class _BazzerReminderPageState extends State<BazzerReminderPage> {
-  final _repository = BazzerRepository();
-  final _voice = VoiceService();
+class _BazzerReminderPageState extends State<BazzerReminderPage>
+    with SingleTickerProviderStateMixin {
+  late final _repository = widget.repository ?? BazzerRepository();
+  late final _voice = widget.voice ?? VoiceService();
   final _nameController = TextEditingController();
   final _quantityController = TextEditingController(text: '1');
   final _searchController = TextEditingController();
-  late final Stream<User?> _authStream = FirebaseAuth.instance
-      .authStateChanges();
+  late final Stream<User?> _authStream = _repository.authStateChanges();
   final Map<String, Stream<String?>> _linkStreams = {};
   final Map<String, Stream<BazzerFamily?>> _familyStreams = {};
   final Map<String, Stream<BazzerMember?>> _memberStreams = {};
   final Map<String, Stream<List<BazzerItem>>> _itemStreams = {};
+  late final _tabs = TabController(length: 2, vsync: this);
+  final _priceEdits = <String, (int?, int)>{};
+  int _priceRevision = 0;
+  String? _selectedPriceItemKey;
+  int _priceTabIndex = 0;
+  final _savingDays = <String>{};
+  final _savedDays = <String, String>{};
   bool _secureNewItem = false;
   String _unit = 'টা';
   String? _manualStore;
@@ -40,6 +55,8 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
   String _search = '';
   String _heard = '';
   bool _isListening = false;
+  bool _voiceStarting = false;
+  bool _reviewingVoice = false;
 
   static const _units = [
     'টা',
@@ -65,19 +82,28 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
 
   Stream<List<BazzerItem>> _itemsStream(
     String id, {
-    required bool bought,
     bool secure = false,
     String? authorUid,
   }) => _itemStreams.putIfAbsent(
-    '$id/$bought/$secure/${authorUid ?? ''}',
+    '$id/$secure/${authorUid ?? ''}',
     () => secure
-        ? _repository.watchSecureItems(
-            id,
-            isBought: bought,
-            authorUid: authorUid,
-          )
-        : _repository.watchItems(id, isBought: bought),
+        ? _repository.watchSecureItems(id, authorUid: authorUid)
+        : _repository.watchItems(id),
   );
+
+  @override
+  void initState() {
+    super.initState();
+    _tabs.addListener(_priceTabChanged);
+  }
+
+  void _priceTabChanged() {
+    if (_tabs.index == _priceTabIndex) return;
+    setState(() {
+      _priceTabIndex = _tabs.index;
+      _selectedPriceItemKey = null;
+    });
+  }
 
   @override
   void dispose() {
@@ -85,6 +111,8 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
     _nameController.dispose();
     _quantityController.dispose();
     _searchController.dispose();
+    _tabs.removeListener(_priceTabChanged);
+    _tabs.dispose();
     super.dispose();
   }
 
@@ -145,6 +173,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
     _nameController.clear();
     _quantityController.text = '1';
     setState(() => _manualStore = null);
+    _revealNewItems();
     _message('তালিকায় যোগ হয়েছে। Offline হলে সংযোগ ফিরলে পাঠাবে।');
   }
 
@@ -153,15 +182,22 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
     required bool secure,
     required String addedBy,
   }) async {
+    if (_voiceStarting || _reviewingVoice) return;
     if (_isListening) {
       await _voice.stopListening();
       if (mounted) setState(() => _isListening = false);
       return;
     }
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _voiceStarting = true;
+      _heard = '';
+      _selectedPriceItemKey = null;
+    });
     try {
       await _voice.startListening(
         onFinalText: (text) {
-          if (!mounted) return;
+          if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
           setState(() {
             _heard = VoiceParser.fixBanglaText(text);
             _isListening = false;
@@ -181,6 +217,8 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
     } catch (error) {
       _message('Voice recognition চালু করা যায়নি: $error');
       if (mounted) setState(() => _isListening = false);
+    } finally {
+      if (mounted) setState(() => _voiceStarting = false);
     }
   }
 
@@ -190,6 +228,8 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
     required bool secure,
     required String addedBy,
   }) async {
+    if (_reviewingVoice) return;
+    _reviewingVoice = true;
     final parsed = VoiceParser.parsePreview(text);
     final chosen = await showModalBottomSheet<List<BazzerItem>>(
       context: context,
@@ -197,23 +237,45 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
       showDragHandle: true,
       builder: (sheetContext) => VoiceReviewSheet(heard: text, parsed: parsed),
     );
+    _reviewingVoice = false;
     if (!mounted || chosen == null || chosen.isEmpty) return;
+    final now = DateTime.now();
+    _revealNewItems();
     _queueWrite(
       _repository.addItems(
         familyId,
-        chosen.map((item) => item.copyWith(isSecure: secure)).toList(),
+        List.generate(
+          chosen.length,
+          (index) => chosen[index].copyWith(
+            isSecure: secure,
+            createdAt: now.add(Duration(microseconds: index)),
+            noteDate: bazzerDayKey(now),
+          ),
+        ),
         addedBy: addedBy,
       ),
     );
     _message('${chosen.length}টি আইটেম তালিকায় যোগ হয়েছে।');
   }
 
+  void _revealNewItems() {
+    _searchController.clear();
+    setState(() {
+      _search = '';
+      _filterStore = null;
+      _selectedPriceItemKey = null;
+    });
+    _tabs.animateTo(0);
+  }
+
   @override
   Widget build(BuildContext context) => StreamBuilder<User?>(
     stream: _authStream,
+    initialData: _repository.signedInUser,
     builder: (context, userSnapshot) {
-      final user = userSnapshot.data ?? FirebaseAuth.instance.currentUser;
+      final user = userSnapshot.data;
       if (user == null) {
+        _selectedPriceItemKey = null;
         return Scaffold(
           appBar: AppBar(title: const Text('বাজার তালিকা')),
           body: Center(
@@ -229,9 +291,11 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
         );
       }
       return StreamBuilder<String?>(
+        key: ValueKey(user.uid),
         stream: _linkStream(user.uid),
         builder: (context, linkSnapshot) {
           if (linkSnapshot.hasError) {
+            _selectedPriceItemKey = null;
             return Scaffold(
               appBar: AppBar(title: const Text('বাজার তালিকা')),
               body: const Center(
@@ -242,6 +306,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
             );
           }
           if (linkSnapshot.connectionState == ConnectionState.waiting) {
+            _selectedPriceItemKey = null;
             return Scaffold(
               appBar: AppBar(title: const Text('বাজার তালিকা')),
               body: const Center(child: CircularProgressIndicator()),
@@ -249,6 +314,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
           }
           final familyId = linkSnapshot.data;
           if (familyId == null || familyId.isEmpty) {
+            _selectedPriceItemKey = null;
             return Scaffold(
               appBar: AppBar(title: const Text('বাজার তালিকা')),
               body: BazzerFamilySetup(repository: _repository),
@@ -258,6 +324,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
             stream: _familyStream(familyId),
             builder: (context, familySnapshot) {
               if (familySnapshot.hasError) {
+                _selectedPriceItemKey = null;
                 return Scaffold(
                   appBar: AppBar(title: const Text('বাজার তালিকা')),
                   body: const Center(
@@ -274,6 +341,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
               }
               final family = familySnapshot.data;
               if (family == null) {
+                _selectedPriceItemKey = null;
                 return const Scaffold(
                   body: Center(child: Text('পরিবারটি পাওয়া যায়নি।')),
                 );
@@ -301,6 +369,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
                   }
                   if (memberSnapshot.hasError ||
                       memberSnapshot.data?.active != true) {
+                    _selectedPriceItemKey = null;
                     return Scaffold(
                       appBar: AppBar(title: const Text('বাজার তালিকা')),
                       body: const Center(
@@ -325,337 +394,487 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
     },
   );
 
-  Widget _shoppingScreen(BazzerFamily family, BazzerMember member) {
+  Future<void> _openFamily(BazzerFamily family, BazzerMember member) async {
+    FocusScope.of(context).unfocus();
+    unawaited(_voice.dispose());
+    setState(() => _isListening = false);
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => member.isAdmin
+            ? BazzerFamilyManagePage(
+                family: family,
+                repository: _repository,
+                currentUid: member.uid,
+              )
+            : BazzerFamilyInfoPage(
+                family: family,
+                member: member,
+                repository: _repository,
+              ),
+      ),
+    );
+  }
+
+  Widget _shoppingScreen(BazzerFamily family, BazzerMember member) =>
+      StreamBuilder<List<BazzerItem>>(
+        key: ValueKey('${family.id}/${member.uid}'),
+        stream: _itemsStream(family.id),
+        builder: (context, snapshot) => StreamBuilder<List<BazzerItem>>(
+          key: ValueKey('${member.uid}/${member.isAdmin}'),
+          stream: _itemsStream(
+            family.id,
+            secure: true,
+            authorUid: member.isAdmin ? null : member.uid,
+          ),
+          builder: (context, secureSnapshot) {
+            final error = snapshot.hasError
+                ? 'তালিকা পড়া যায়নি। আবার চেষ্টা করুন।'
+                : secureSnapshot.hasError
+                ? 'Secure তালিকা পড়া যায়নি। Admin-এর সঙ্গে যোগাযোগ করুন।'
+                : null;
+            final loading =
+                snapshot.connectionState == ConnectionState.waiting ||
+                secureSnapshot.connectionState == ConnectionState.waiting;
+            // The list and the single price panel use the same permitted,
+            // optimistic snapshot. Never retain a selected document object.
+            final items = loading || error != null
+                ? <BazzerItem>[]
+                : [...?snapshot.data, ...?secureSnapshot.data].map((item) {
+                    final edit =
+                        _priceEdits[_priceKey(family.id, member, item)];
+                    return edit == null
+                        ? item
+                        : item.copyWith(
+                            pricePaisa: edit.$1,
+                            clearPrice: edit.$1 == null,
+                            hasPendingWrites: true,
+                          );
+                  }).toList();
+            return _shoppingFrame(
+              family,
+              member,
+              items,
+              loading: loading,
+              error: error,
+            );
+          },
+        ),
+      );
+
+  Widget _shoppingFrame(
+    BazzerFamily family,
+    BazzerMember member,
+    List<BazzerItem> items, {
+    required bool loading,
+    String? error,
+  }) {
+    final eligible = items.where(
+      (item) =>
+          (member.isAdmin || item.createdBy == member.uid) &&
+          item.isBought == (_tabs.index == 1) &&
+          (_tabs.index == 1 ||
+              _filterStore == null ||
+              item.category == _filterStore) &&
+          item.name.toLowerCase().contains(_search.toLowerCase()),
+    );
+    BazzerItem? selected;
+    for (final item in eligible) {
+      if (_selectionKey(family.id, member, item) == _selectedPriceItemKey) {
+        selected = item;
+        break;
+      }
+    }
+    // Reconcile synchronously so deleted, hidden or newly forbidden items
+    // cannot remain actionable in the panel or an open price dialog.
+    if (selected == null) _selectedPriceItemKey = null;
+    final selectedItem = selected;
     final colors = Theme.of(context).colorScheme;
     final admin = member.isAdmin;
     final secure = member.secure || (admin && _secureNewItem);
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('পরিবারের বাজার'),
-          actions: [
-            if (admin)
-              IconButton(
-                tooltip: 'পরিবারের সদস্য ও কোড',
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => BazzerFamilyManagePage(
-                      family: family,
-                      repository: _repository,
-                      currentUid: member.uid,
-                    ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('পরিবারের বাজার'),
+        actions: [
+          IconButton(
+            tooltip: 'মাসিক খরচ',
+            onPressed: () {
+              FocusScope.of(context).unfocus();
+              unawaited(_voice.dispose());
+              setState(() => _isListening = false);
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => BazzerMonthlyExpensesPage(
+                    repository: _repository,
+                    familyId: family.id,
                   ),
                 ),
-                icon: const Icon(Icons.manage_accounts_rounded),
-              ),
+              );
+            },
+            icon: const Icon(Icons.receipt_long_outlined),
+          ),
+          IconButton(
+            tooltip: admin ? 'পরিবারের সদস্য ও কোড' : 'পরিবারের কোড ও তথ্য',
+            onPressed: () => _openFamily(family, member),
+            icon: const Icon(Icons.manage_accounts_rounded),
+          ),
+        ],
+        bottom: TabBar(
+          controller: _tabs,
+          tabs: const [
+            Tab(icon: Icon(Icons.shopping_cart_outlined), text: 'কেনা বাকি'),
+            Tab(icon: Icon(Icons.task_alt_rounded), text: 'কেনা হয়েছে'),
           ],
-          bottom: const TabBar(
-            tabs: [
-              Tab(icon: Icon(Icons.shopping_cart_outlined), text: 'কেনা বাকি'),
-              Tab(icon: Icon(Icons.task_alt_rounded), text: 'কেনা হয়েছে'),
-            ],
-          ),
         ),
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: () =>
-              _toggleVoice(family.id, secure: secure, addedBy: member.name),
-          icon: Icon(_isListening ? Icons.stop_rounded : Icons.mic_rounded),
-          label: Text(_isListening ? 'শুনছি—থামুন' : 'বাংলায় বলুন'),
-        ),
-        body: SafeArea(
-          child: NestedScrollView(
-            headerSliverBuilder: (context, innerBoxIsScrolled) => [
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                  child: Column(
-                    children: [
-                      Card(
-                        color: colors.primaryContainer,
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.family_restroom_rounded,
-                                color: colors.onPrimaryContainer,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  member.isOwner
-                                      ? 'মূল অ্যাকাউন্ট • Admin • বাজার সম্পন্ন ও সদস্য পরিচালনা'
-                                      : admin
-                                      ? 'Admin • বাজার সম্পন্ন ও সদস্য পরিচালনা'
-                                      : member.secure
-                                      ? 'Secure সদস্য • আপনার নতুন তালিকা শুধু Admin ও আপনি দেখবেন'
-                                      : 'পরিবারের সদস্য • আপনি তালিকায় যোগ করতে পারবেন',
-                                  style: TextStyle(
-                                    color: colors.onPrimaryContainer,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+      ),
+      bottomNavigationBar: MediaQuery.viewInsetsOf(context).bottom > 0
+          ? null
+          : BazzerPricePanel(
+              item: selectedItem,
+              hasEditableItems: eligible.isNotEmpty,
+              voiceLabel: _voiceStarting
+                  ? 'চালু হচ্ছে…'
+                  : _isListening
+                  ? 'শুনছি—থামুন'
+                  : 'বাংলায় বলুন',
+              listening: _isListening,
+              onVoice: _voiceStarting
+                  ? null
+                  : () => _toggleVoice(
+                      family.id,
+                      secure: secure,
+                      addedBy: member.name,
+                    ),
+              onPriceSelected: selectedItem == null
+                  ? null
+                  : (price) =>
+                        _setPrice(family.id, member, selectedItem, price),
+              onAddFive: selectedItem == null
+                  ? null
+                  : () => _addFive(family.id, member, selectedItem),
+              onCustomPrice: selectedItem == null
+                  ? null
+                  : () => _customPrice(family.id, member, selectedItem),
+              onClearSelection: () =>
+                  setState(() => _selectedPriceItemKey = null),
+            ),
+      body: SafeArea(
+        child: NestedScrollView(
+          headerSliverBuilder: (context, innerBoxIsScrolled) => [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Column(
+                  children: [
+                    Card(
+                      color: colors.primaryContainer,
+                      clipBehavior: Clip.antiAlias,
+                      child: ListTile(
+                        key: const ValueKey('bazzer-family-button'),
+                        onTap: () => _openFamily(family, member),
+                        leading: Icon(
+                          Icons.family_restroom_rounded,
+                          color: colors.onPrimaryContainer,
+                        ),
+                        title: Text(
+                          member.isOwner
+                              ? 'মূল অ্যাকাউন্ট • Admin'
+                              : admin
+                              ? 'Admin'
+                              : member.secure
+                              ? 'পরিবারের সদস্য • Secure'
+                              : 'পরিবারের সদস্য',
+                          style: TextStyle(color: colors.onPrimaryContainer),
+                        ),
+                        subtitle: Text(
+                          admin
+                              ? 'সদস্য ও কোড পরিচালনা করতে চাপুন'
+                              : 'পরিবারের কোড দেখতে ও কপি করতে চাপুন',
+                          style: TextStyle(color: colors.onPrimaryContainer),
+                        ),
+                        trailing: Icon(
+                          Icons.chevron_right,
+                          color: colors.onPrimaryContainer,
                         ),
                       ),
-                      if (_heard.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 5),
-                          child: Text(
-                            '🎤 $_heard',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: colors.onSurfaceVariant),
-                          ),
+                    ),
+                    if (_heard.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 5),
+                        child: Text(
+                          '🎤 $_heard',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: colors.onSurfaceVariant),
                         ),
-                      TextField(
-                        controller: _searchController,
+                      ),
+                    TextField(
+                      controller: _searchController,
+                      onChanged: (value) => setState(() {
+                        _search = value.trim();
+                        _selectedPriceItemKey = null;
+                      }),
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search_rounded),
+                        hintText: 'বাজারের জিনিস খুঁজুন',
+                      ),
+                    ),
+                    if (admin)
+                      SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('নতুন আইটেম Secure তালিকায় যোগ করুন'),
+                        value: _secureNewItem,
                         onChanged: (value) =>
-                            setState(() => _search = value.trim()),
-                        decoration: const InputDecoration(
-                          prefixIcon: Icon(Icons.search_rounded),
-                          hintText: 'বাজারের জিনিস খুঁজুন',
-                        ),
+                            setState(() => _secureNewItem = value),
                       ),
-                      if (admin)
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text(
-                            'নতুন আইটেম Secure তালিকায় যোগ করুন',
+                    ExpansionTile(
+                      title: const Text('লিখে নতুন জিনিস যোগ করুন'),
+                      leading: const Icon(Icons.add_circle_outline_rounded),
+                      tilePadding: EdgeInsets.zero,
+                      childrenPadding: const EdgeInsets.only(bottom: 8),
+                      children: [
+                        TextField(
+                          controller: _nameController,
+                          decoration: const InputDecoration(
+                            labelText: 'জিনিসের নাম (যেমন কাঁচামরিচ)',
                           ),
-                          value: _secureNewItem,
-                          onChanged: (value) =>
-                              setState(() => _secureNewItem = value),
                         ),
-                      ExpansionTile(
-                        title: const Text('লিখে নতুন জিনিস যোগ করুন'),
-                        leading: const Icon(Icons.add_circle_outline_rounded),
-                        tilePadding: EdgeInsets.zero,
-                        childrenPadding: const EdgeInsets.only(bottom: 8),
-                        children: [
-                          TextField(
-                            controller: _nameController,
-                            decoration: const InputDecoration(
-                              labelText: 'জিনিসের নাম (যেমন কাঁচামরিচ)',
-                            ),
-                          ),
-                          const SizedBox(height: 7),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _quantityController,
-                                  keyboardType:
-                                      const TextInputType.numberWithOptions(
-                                        decimal: true,
-                                      ),
-                                  decoration: const InputDecoration(
-                                    labelText: 'পরিমাণ',
-                                  ),
+                        const SizedBox(height: 7),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _quantityController,
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
+                                decoration: const InputDecoration(
+                                  labelText: 'পরিমাণ',
                                 ),
                               ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: DropdownButtonFormField<String>(
-                                  initialValue: _unit,
-                                  decoration: const InputDecoration(
-                                    labelText: 'একক',
-                                  ),
-                                  items: [
-                                    for (final unit in _units)
-                                      DropdownMenuItem(
-                                        value: unit,
-                                        child: Text(unit),
-                                      ),
-                                  ],
-                                  onChanged: (value) {
-                                    if (value != null) {
-                                      setState(() => _unit = value);
-                                    }
-                                  },
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                isExpanded: true,
+                                initialValue: _unit,
+                                decoration: const InputDecoration(
+                                  labelText: 'একক',
                                 ),
+                                items: [
+                                  for (final unit in _units)
+                                    DropdownMenuItem(
+                                      value: unit,
+                                      child: Text(unit),
+                                    ),
+                                ],
+                                onChanged: (value) {
+                                  if (value != null) {
+                                    setState(() => _unit = value);
+                                  }
+                                },
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          DropdownButtonFormField<String>(
-                            key: ValueKey(_manualStore),
-                            initialValue: _manualStore ?? '',
-                            decoration: const InputDecoration(
-                              labelText: 'কোন দোকান?',
                             ),
-                            items: [
-                              const DropdownMenuItem(
-                                value: '',
-                                child: Text('নাম দেখে স্বয়ংক্রিয়'),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          isExpanded: true,
+                          key: ValueKey(_manualStore),
+                          initialValue: _manualStore ?? '',
+                          decoration: const InputDecoration(
+                            labelText: 'কোন দোকান?',
+                          ),
+                          items: [
+                            const DropdownMenuItem(
+                              value: '',
+                              child: Text('নাম দেখে স্বয়ংক্রিয়'),
+                            ),
+                            for (final category in StoreCategory.all)
+                              DropdownMenuItem(
+                                value: category,
+                                child: Text(category),
                               ),
-                              for (final category in StoreCategory.all)
-                                DropdownMenuItem(
-                                  value: category,
-                                  child: Text(category),
-                                ),
-                            ],
-                            onChanged: (value) => setState(
-                              () => _manualStore = value == '' ? null : value,
-                            ),
+                          ],
+                          onChanged: (value) => setState(
+                            () => _manualStore = value == '' ? null : value,
                           ),
-                          const SizedBox(height: 7),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: FilledButton.icon(
-                              onPressed: () => _addManual(
-                                family.id,
-                                secure: secure,
-                                addedBy: member.name,
-                              ),
-                              icon: const Icon(Icons.add),
-                              label: const Text('তালিকায় যোগ করুন'),
+                        ),
+                        const SizedBox(height: 7),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: FilledButton.icon(
+                            onPressed: () => _addManual(
+                              family.id,
+                              secure: secure,
+                              addedBy: member.name,
                             ),
+                            icon: const Icon(Icons.add),
+                            label: const Text('তালিকায় যোগ করুন'),
                           ),
-                        ],
-                      ),
-                    ],
-                  ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-            ],
-            body: TabBarView(
-              children: [
-                _itemsTab(family.id, member: member, bought: false),
-                _itemsTab(family.id, member: member, bought: true),
-              ],
             ),
-          ),
+          ],
+          body: error != null
+              ? Center(child: Text(error))
+              : loading
+              ? const Center(child: CircularProgressIndicator())
+              : _itemsTabs(
+                  family.id,
+                  member: member,
+                  items: items,
+                  selected: selectedItem,
+                ),
         ),
       ),
     );
   }
 
-  Widget _itemsTab(
+  Widget _itemsTabs(
     String familyId, {
     required BazzerMember member,
-    required bool bought,
-  }) {
-    return StreamBuilder<List<BazzerItem>>(
-      stream: _itemsStream(familyId, bought: bought),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return const Center(
-            child: Text(
-              'তালিকা পড়া যায়নি। সদস্যের অনুমতি ও rules পরীক্ষা করুন।',
-            ),
-          );
-        }
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        // Every writer keeps access to their own older secure items after an
-        // admin changes their account back to normal.
-        return StreamBuilder<List<BazzerItem>>(
-          stream: _itemsStream(
-            familyId,
-            bought: bought,
-            secure: true,
-            authorUid: member.isAdmin ? null : member.uid,
+    required List<BazzerItem> items,
+    required BazzerItem? selected,
+  }) => TabBarView(
+    controller: _tabs,
+    children: [
+      for (final bought in [false, true])
+        BazzerDailyList(
+          items: items,
+          bought: bought,
+          currentUid: member.uid,
+          isAdmin: member.isAdmin,
+          search: _search,
+          filterStore: bought ? null : _filterStore,
+          filters: bought ? null : _storeFilters(),
+          onEdit: (item) => _editItem(familyId, item),
+          onDelete: (item) => _deleteItem(familyId, item),
+          onToggle: (item) => _queueWrite(
+            _repository.setBought(familyId, item, !item.isBought),
           ),
-          builder: (context, secureSnapshot) {
-            if (secureSnapshot.hasError) {
-              return const Center(
-                child: Text(
-                  'Secure তালিকা পড়া যায়নি। Firebase rules পরীক্ষা করুন।',
-                ),
-              );
-            }
-            return _itemList(
-              familyId,
-              member: member,
-              bought: bought,
-              items: [...?snapshot.data, ...?secureSnapshot.data],
+          onSelectPrice: (item) {
+            FocusScope.of(context).unfocus();
+            setState(
+              () =>
+                  _selectedPriceItemKey = _selectionKey(familyId, member, item),
             );
           },
-        );
-      },
+          selectedPriceKey: selected == null
+              ? null
+              : '${selected.isSecure}/${selected.id}',
+          onSave: (note) => _saveDay(familyId, member, note),
+          savingDays: {
+            for (final item in items)
+              if (_savingDays.contains(
+                '$familyId/${member.uid}/${item.dayKey}',
+              ))
+                item.dayKey,
+          },
+          savedSignatures: {
+            for (final item in items)
+              if (_savedDays.containsKey(
+                '$familyId/${member.uid}/${item.dayKey}',
+              ))
+                item.dayKey:
+                    _savedDays['$familyId/${member.uid}/${item.dayKey}']!,
+          },
+        ),
+    ],
+  );
+
+  String _selectionKey(String familyId, BazzerMember member, BazzerItem item) =>
+      '$familyId/${member.uid}/${member.isAdmin}/${item.isSecure}/${item.id}';
+
+  String _priceKey(String familyId, BazzerMember member, BazzerItem item) =>
+      '$familyId/${member.uid}/${item.isSecure}/${item.id}';
+
+  void _addFive(String familyId, BazzerMember member, BazzerItem item) {
+    final key = _priceKey(familyId, member, item);
+    final previous = _priceEdits.containsKey(key)
+        ? _priceEdits[key]!.$1
+        : item.pricePaisa;
+    final next = (previous ?? 0) + 500;
+    if (next > bazzerMaxPricePaisa) return;
+    _setPrice(familyId, member, item, next);
+  }
+
+  Future<void> _saveDay(
+    String familyId,
+    BazzerMember member,
+    BazzerDailyNote note,
+  ) async {
+    if (!member.isAdmin) return;
+    final key = '$familyId/${member.uid}/${note.day}';
+    if (_savingDays.contains(key)) return;
+    try {
+      final draft = BazzerExpenseDraft.fromNote(note);
+      setState(() => _savingDays.add(key));
+      await _repository.saveExpense(familyId, draft);
+      if (!mounted) return;
+      setState(() => _savedDays[key] = draft.signature);
+      _message('হিসাব সেভ হয়েছে। উপরের রসিদ আইকনে মাসিক খরচ দেখুন।');
+    } catch (_) {
+      _message(
+        'হিসাব সেভ হয়নি। সব দাম, সংযোগ ও Admin-এর অনুমতি দেখে আবার চেষ্টা করুন।',
+      );
+    } finally {
+      if (mounted) setState(() => _savingDays.remove(key));
+    }
+  }
+
+  void _setPrice(
+    String familyId,
+    BazzerMember member,
+    BazzerItem item,
+    int? price,
+  ) {
+    if (!member.isAdmin && item.createdBy != member.uid) return;
+    final key = _priceKey(familyId, member, item);
+    final previous = _priceEdits.containsKey(key)
+        ? _priceEdits[key]!.$1
+        : item.pricePaisa;
+    if (previous == price) return;
+    final revision = ++_priceRevision;
+    setState(() => _priceEdits[key] = (price, revision));
+    unawaited(
+      _repository
+          .setPrice(familyId, item, price)
+          .then((_) {
+            if (mounted && _priceEdits[key]?.$2 == revision) {
+              setState(() => _priceEdits.remove(key));
+            }
+          })
+          .catchError((Object error) {
+            if (mounted && _priceEdits[key]?.$2 == revision) {
+              setState(() => _priceEdits.remove(key));
+              _message('দাম রাখা যায়নি। সংযোগ ও অনুমতি দেখে আবার চেষ্টা করুন।');
+            }
+          }),
     );
   }
 
-  Widget _itemList(
-    String familyId, {
-    required BazzerMember member,
-    required bool bought,
-    required List<BazzerItem> items,
-  }) {
-    final filtered = items
-        .where(
-          (item) => item.name.toLowerCase().contains(_search.toLowerCase()),
-        )
-        .toList();
-    filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(14, 6, 14, 100),
-      children: [
-        if (!bought) _storeFilters(),
-        if (filtered.isEmpty)
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Center(
-              child: Text(
-                bought
-                    ? 'এখনো কেনা হয়েছে এমন জিনিস নেই।'
-                    : 'দোকান অনুযায়ী বাজার যোগ করুন।',
-              ),
-            ),
-          ),
-        for (final category in StoreCategory.all)
-          if ((_filterStore == null || bought || _filterStore == category) &&
-              filtered.any((item) => item.category == category)) ...[
-            Padding(
-              padding: const EdgeInsets.only(top: 12, bottom: 4),
-              child: Text(
-                '$category দোকান',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
-            for (final item in filtered.where(
-              (item) => item.category == category,
-            ))
-              Dismissible(
-                key: ValueKey('${item.isSecure}/${item.id}'),
-                direction: member.isAdmin
-                    ? DismissDirection.endToStart
-                    : DismissDirection.none,
-                background: Container(
-                  alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.only(right: 22),
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  child: Icon(
-                    bought ? Icons.undo_rounded : Icons.done_all_rounded,
-                  ),
-                ),
-                confirmDismiss: (_) async {
-                  if (member.isAdmin) {
-                    _queueWrite(
-                      _repository.setBought(familyId, item, !item.isBought),
-                    );
-                  }
-                  // Let the Firestore listener move the tile between tabs.
-                  return false;
-                },
-                child: BazzerItemTile(
-                  item: item,
-                  canMarkBought: member.isAdmin,
-                  canEdit: item.createdBy == member.uid,
-                  onEdit: () => _editItem(familyId, item),
-                  onDelete: () => _deleteItem(familyId, item),
-                  onToggle: () => _queueWrite(
-                    _repository.setBought(familyId, item, !item.isBought),
-                  ),
-                ),
-              ),
-          ],
-      ],
+  Future<void> _customPrice(
+    String familyId,
+    BazzerMember member,
+    BazzerItem item,
+  ) async {
+    final selection = _selectedPriceItemKey;
+    final result = await showDialog<BazzerPriceEdit>(
+      context: context,
+      builder: (_) => BazzerPriceDialog(item: item),
     );
+    if (!mounted ||
+        result == null ||
+        selection == null ||
+        selection != _selectedPriceItemKey) {
+      return;
+    }
+    _setPrice(familyId, member, item, result.paisa);
   }
 
   Future<void> _editItem(String familyId, BazzerItem item) async {
@@ -706,14 +925,20 @@ class _BazzerReminderPageState extends State<BazzerReminderPage> {
         ChoiceChip(
           label: const Text('সব দোকান'),
           selected: _filterStore == null,
-          onSelected: (_) => setState(() => _filterStore = null),
+          onSelected: (_) => setState(() {
+            _filterStore = null;
+            _selectedPriceItemKey = null;
+          }),
         ),
         const SizedBox(width: 6),
         for (final category in StoreCategory.all) ...[
           ChoiceChip(
             label: Text(category),
             selected: _filterStore == category,
-            onSelected: (_) => setState(() => _filterStore = category),
+            onSelected: (_) => setState(() {
+              _filterStore = category;
+              _selectedPriceItemKey = null;
+            }),
           ),
           const SizedBox(width: 6),
         ],

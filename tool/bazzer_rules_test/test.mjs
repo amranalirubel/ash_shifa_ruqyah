@@ -16,6 +16,7 @@ import {
   deleteDoc,
   query,
   serverTimestamp,
+  Timestamp,
   updateDoc,
   where,
   writeBatch,
@@ -117,6 +118,27 @@ try {
   await assertFails(updateDoc(doc(owner, item), { name: 'Owner cannot edit another author' }));
   await assertFails(deleteDoc(doc(viewer, item)));
   await assertFails(deleteDoc(doc(owner, item)));
+  // An item's total price is replaceable by its author or a family Admin.
+  // Amounts are integer paisa; role, content and immutable note dates stay protected.
+  await assertSucceeds(updateDoc(doc(member, item), { pricePaisa: 1000 }));
+  await assertSucceeds(updateDoc(doc(owner, item), { pricePaisa: 2500 }));
+  await assertFails(updateDoc(doc(viewer, item), { pricePaisa: 5000 }));
+  await assertFails(updateDoc(doc(stranger, item), { pricePaisa: 5000 }));
+  for (const pricePaisa of [-1, 1.5, '1000', 100000001]) {
+    await assertFails(updateDoc(doc(owner, item), { pricePaisa }));
+  }
+  await assertSucceeds(updateDoc(doc(member, item), { pricePaisa: null }));
+  await assertSucceeds(updateDoc(doc(member, item), { pricePaisa: 0 }));
+  const datedItem = `${family}/items/dated`;
+  await assertSucceeds(setDoc(doc(member, datedItem), {
+    ...add, pricePaisa: null, noteDate: '2026-09-24',
+    clientCreatedAt: Timestamp.fromDate(new Date('2026-09-24T10:00:00Z')),
+  }));
+  await assertFails(updateDoc(doc(member, datedItem), { noteDate: '2026-09-25' }));
+  await assertFails(updateDoc(doc(owner, datedItem), { pricePaisa: 1000, createdBy: 'owner' }));
+  await assertFails(setDoc(doc(member, `${family}/items/invalid-date`), {
+    ...add, noteDate: '2026-13-99',
+  }));
   await assertSucceeds(setDoc(doc(member, `${family}/items/delete-me`), add));
   await assertSucceeds(deleteDoc(doc(member, `${family}/items/delete-me`)));
   await assertSucceeds(getDocs(query(
@@ -151,6 +173,9 @@ try {
   await assertSucceeds(getDoc(doc(owner, secureItem)));
   await assertSucceeds(updateDoc(doc(member, secureItem), { name: 'আমার পরিবর্তন' }));
   await assertFails(updateDoc(doc(viewer, secureItem), { name: 'অন্য পরিবর্তন' }));
+  await assertSucceeds(updateDoc(doc(member, secureItem), { pricePaisa: 1000 }));
+  await assertSucceeds(updateDoc(doc(owner, secureItem), { pricePaisa: 2000 }));
+  await assertFails(updateDoc(doc(viewer, secureItem), { pricePaisa: 3000 }));
   await assertFails(setDoc(doc(viewer, `${family}/secure_items/no-access`), {
     ...add, createdBy: 'viewer',
   }));
@@ -169,6 +194,58 @@ try {
   await assertSucceeds(getDoc(doc(member, secureItem)));
   await assertSucceeds(deleteDoc(doc(member, secureItem)));
 
+  // A saved date is an idempotent, paired snapshot. Shared readers never
+  // receive totals that contain secure shopping amounts.
+  const expenseDay = '2026-09-24';
+  const expense = `${family}/expenses/${expenseDay}`;
+  const adminExpense = `${family}/admin_expenses/${expenseDay}`;
+  function saveExpense(db, uid, { sharedTotal = 2500, fullTotal = 6500,
+    sharedCount = 1, fullCount = 2, day = expenseDay, extra = {} } = {}) {
+    const batch = writeBatch(db);
+    const fields = { day, savedBy: uid, savedAt: serverTimestamp(), ...extra };
+    batch.set(doc(db, `${family}/expenses/${day}`), {
+      ...fields, totalPaisa: sharedTotal, itemCount: sharedCount,
+    });
+    batch.set(doc(db, `${family}/admin_expenses/${day}`), {
+      ...fields, totalPaisa: fullTotal, itemCount: fullCount,
+    });
+    return batch.commit();
+  }
+  await assertSucceeds(saveExpense(owner, 'owner'));
+  assert.equal((await getDoc(doc(viewer, expense))).data().totalPaisa, 2500);
+  await assertFails(getDoc(doc(viewer, adminExpense)));
+  await assertFails(getDocs(collection(member, `${family}/admin_expenses`)));
+  await assertFails(saveExpense(member, 'member'));
+  await assertFails(saveExpense(stranger, 'stranger'));
+  await assertFails(saveExpense(guest, 'guest'));
+  await assertFails(saveExpense(owner, 'someone-else'));
+  await assertFails(setDoc(doc(owner, expense), {
+    day: expenseDay, totalPaisa: 2000, itemCount: 1,
+    savedBy: 'owner', savedAt: serverTimestamp(),
+  })); // No partial save of the pair.
+  for (const invalid of [-1, 1.5, '1000', 100000001]) {
+    await assertFails(saveExpense(owner, 'owner', { sharedTotal: invalid }));
+  }
+  await assertFails(saveExpense(owner, 'owner', { fullTotal: 1000 }));
+  await assertFails(saveExpense(owner, 'owner', { sharedCount: 3 }));
+  await assertFails(saveExpense(owner, 'owner', { sharedCount: 1000001 }));
+  await assertFails(saveExpense(owner, 'owner', { day: '2026-13-99' }));
+  await assertFails(saveExpense(owner, 'owner', { extra: { privateText: 'not allowed' } }));
+  await assertFails(saveExpense(owner, 'owner', { extra: { savedAt: Timestamp.fromMillis(0) } }));
+  await assertSucceeds(saveExpense(owner, 'owner', { sharedTotal: 3000, fullTotal: 7000 }));
+  assert.equal((await getDocs(collection(owner, `${family}/expenses`))).size, 1);
+  assert.equal((await getDoc(doc(owner, adminExpense))).data().totalPaisa, 7000);
+  await assertSucceeds(getDocs(query(collection(viewer, `${family}/expenses`),
+    where('day', '>=', '2026-09-01'), where('day', '<', '2026-10-01'))));
+  await assertFails(getDoc(doc(stranger, expense)));
+  await assertFails(deleteDoc(doc(owner, expense)));
+  await assertSucceeds(updateDoc(doc(owner, viewerDoc), { role: 'admin' }));
+  await assertSucceeds(saveExpense(viewer, 'viewer', { sharedTotal: 0, fullTotal: 5000, sharedCount: 0 }));
+  await assertSucceeds(getDoc(doc(viewer, adminExpense)));
+  await assertSucceeds(updateDoc(doc(owner, viewerDoc), { role: 'member' }));
+  await assertFails(getDoc(doc(viewer, adminExpense)));
+  await assertFails(saveExpense(viewer, 'viewer'));
+
   await assertSucceeds(updateDoc(doc(owner, family), {
     joiningEnabled: false, updatedAt: serverTimestamp(),
   }));
@@ -180,7 +257,10 @@ try {
   await assertSucceeds(updateDoc(doc(owner, memberDoc), {
     active: false, removedAt: serverTimestamp(),
   }));
+  await assertFails(getDoc(doc(member, expense)));
+  await assertFails(getDoc(doc(member, adminExpense)));
   await assertFails(getDoc(doc(member, item)));
+  await assertFails(updateDoc(doc(member, item), { pricePaisa: 1000 }));
   await assertFails(setDoc(doc(member, `${family}/items/item-2`), {
     ...add, name: 'আলু',
   }));
@@ -193,7 +273,7 @@ try {
     active: true, removedAt: null,
   }));
   await assertSucceeds(getDoc(doc(member, item)));
-  console.log('Family shopping Firestore rules: owner, invite, membership, revoke, shopping all passed.');
+  console.log('Family shopping Firestore rules: owner, invite, membership, revoke, shopping and monthly expenses all passed.');
 } finally {
   await environment.cleanup();
 }

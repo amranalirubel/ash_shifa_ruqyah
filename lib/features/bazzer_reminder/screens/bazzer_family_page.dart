@@ -116,7 +116,208 @@ class _BazzerFamilySetupState extends State<BazzerFamilySetup> {
   }
 }
 
-class BazzerFamilyManagePage extends StatelessWidget {
+/// Active members can already read the family document, including its code.
+/// Reuse its code and joining state without querying the admin-only directory.
+class _FamilyCodeCard extends StatelessWidget {
+  const _FamilyCodeCard({required this.family});
+
+  final BazzerFamily family;
+
+  Future<void> _copyCode(BuildContext context) async {
+    try {
+      await Clipboard.setData(ClipboardData(text: family.inviteCode));
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('কোড কপি হয়েছে।')));
+      }
+    } on PlatformException {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('কপি হয়নি। কোডটি চেপে ধরে কপি করুন।')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('পরিবারের কোড', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          SelectableText(
+            family.inviteCode,
+            textDirection: TextDirection.ltr,
+            style: const TextStyle(
+              fontSize: 22,
+              letterSpacing: 2,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            key: const ValueKey('bazzer-copy-family-code'),
+            onPressed: () => _copyCode(context),
+            icon: const Icon(Icons.copy_rounded),
+            label: const Text('কোড কপি করুন'),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            family.joiningEnabled
+                ? 'নতুন সদস্য যুক্ত করা চালু আছে।'
+                : 'নতুন সদস্য যুক্ত করা বন্ধ আছে। Admin চালু করলে এই কোড ব্যবহার করা যাবে।',
+            key: const ValueKey('bazzer-family-joining-status'),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'শুধু পরিবারের সদস্যকে কোড দিন। তিনি নিজের অ্যাকাউন্টে '
+            'লগইন করে পরিবারের বাজার খুলে এই কোড দিয়ে যুক্ত হবেন।',
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Members can copy the family code and inspect their live role without
+/// querying the private member directory, which is reserved for admins.
+class BazzerFamilyInfoPage extends StatefulWidget {
+  const BazzerFamilyInfoPage({
+    super.key,
+    required this.family,
+    required this.member,
+    required this.repository,
+  });
+
+  final BazzerFamily family;
+  final BazzerMember member;
+  final BazzerRepository repository;
+
+  @override
+  State<BazzerFamilyInfoPage> createState() => _BazzerFamilyInfoPageState();
+}
+
+class _BazzerFamilyInfoPageState extends State<BazzerFamilyInfoPage> {
+  late final _familyStream = widget.repository.watchFamily(widget.family.id);
+  late final _memberStream = widget.repository.watchOwnMember(
+    widget.family.id,
+    widget.member.uid,
+  );
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('আমার পরিবার')),
+    body: StreamBuilder<BazzerMember?>(
+      stream: _memberStream,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const Center(
+            child: Text('পরিবারের তথ্য পাওয়া যায়নি। আবার খুলে দেখুন।'),
+          );
+        }
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final member = snapshot.data;
+        if (member == null || !member.active) {
+          return const Center(
+            child: Text(
+              'আপনার সদস্যপদ এখন সক্রিয় নেই। পরিবারের Admin-এর সঙ্গে যোগাযোগ করুন।',
+            ),
+          );
+        }
+        return StreamBuilder<BazzerFamily?>(
+          stream: _familyStream,
+          builder: (context, familySnapshot) {
+            if (familySnapshot.hasError) {
+              return const Center(
+                child: Text('পরিবারের তথ্য পাওয়া যায়নি। আবার খুলে দেখুন।'),
+              );
+            }
+            if (familySnapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final family = familySnapshot.data;
+            if (family == null) {
+              return const Center(child: Text('পরিবার পাওয়া যায়নি।'));
+            }
+            return _familyDetails(context, family, member);
+          },
+        );
+      },
+    ),
+  );
+
+  Widget _familyDetails(
+    BuildContext context,
+    BazzerFamily family,
+    BazzerMember member,
+  ) => ListView(
+    padding: const EdgeInsets.all(16),
+    children: [
+      Text(family.name, style: Theme.of(context).textTheme.headlineSmall),
+      const SizedBox(height: 16),
+      if (member.isAdmin) ...[
+        FilledButton.icon(
+          key: const ValueKey('bazzer-family-manage'),
+          onPressed: () => Navigator.of(context).pushReplacement(
+            MaterialPageRoute<void>(
+              builder: (_) => BazzerFamilyManagePage(
+                family: family,
+                repository: widget.repository,
+                currentUid: member.uid,
+              ),
+            ),
+          ),
+          icon: const Icon(Icons.manage_accounts_outlined),
+          label: const Text('পরিবার পরিচালনা'),
+        ),
+        const SizedBox(height: 8),
+      ],
+      _FamilyCodeCard(family: family),
+      const SizedBox(height: 8),
+      ListTile(
+        leading: const Icon(Icons.person_outline),
+        title: Text(member.name),
+        subtitle: Text(member.isAdmin ? 'Admin' : 'পরিবারের সদস্য'),
+      ),
+      ListTile(
+        leading: Icon(
+          member.secure ? Icons.lock_outline : Icons.group_outlined,
+        ),
+        title: Text(member.secure ? 'Secure' : 'Normal'),
+        subtitle: Text(
+          member.secure
+              ? 'আপনার নতুন বাজারের আইটেম শুধু আপনি ও পরিবারের Admin দেখবেন।'
+              : 'আপনার নতুন বাজারের আইটেম পরিবারের সক্রিয় সদস্যরা দেখবেন।',
+        ),
+      ),
+      const Padding(
+        padding: EdgeInsets.all(16),
+        child: Text(
+          'নিজের লেখা আইটেম পরিবর্তন বা মুছতে তালিকার পাশে তিন বিন্দু চাপুন।',
+        ),
+      ),
+      if (!member.isAdmin)
+        const Padding(
+          padding: EdgeInsets.all(16),
+          child: Text(
+            'আপনি এই পরিবারের সদস্য হিসেবে যুক্ত আছেন। সদস্যের নাম, '
+            'Admin-এর অধিকার ও Normal/Secure পরিবর্তন করেন পরিবারের Admin। '
+            'যে অ্যাকাউন্ট দিয়ে পরিবার তৈরি হয়েছিল, সেই অ্যাকাউন্টে '
+            'লগইন করলে পরিচালনার বাটন পাবেন। Admin আপনাকে অধিকার '
+            'দিলেও এখানেই পরিচালনার বাটন দেখাবে।',
+          ),
+        ),
+    ],
+  );
+}
+
+class BazzerFamilyManagePage extends StatefulWidget {
   const BazzerFamilyManagePage({
     super.key,
     required this.family,
@@ -127,6 +328,20 @@ class BazzerFamilyManagePage extends StatelessWidget {
   final BazzerFamily family;
   final BazzerRepository repository;
   final String currentUid;
+
+  @override
+  State<BazzerFamilyManagePage> createState() => _BazzerFamilyManagePageState();
+}
+
+class _BazzerFamilyManagePageState extends State<BazzerFamilyManagePage> {
+  BazzerFamily get family => widget.family;
+  BazzerRepository get repository => widget.repository;
+  String get currentUid => widget.currentUid;
+  late final _familyStream = repository.watchFamily(family.id);
+  late final _membersStream = repository.watchMembers(family.id);
+  late final _ownMemberStream = family.ownerUid == currentUid
+      ? null
+      : repository.watchOwnMember(family.id, currentUid);
 
   void _message(BuildContext context, String message) => ScaffoldMessenger.of(
     context,
@@ -280,56 +495,52 @@ class BazzerFamilyManagePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (_ownMemberStream == null) return _managementScreen(context);
+    return StreamBuilder<BazzerMember?>(
+      stream: _ownMemberStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('পরিবার পরিচালনা')),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasError ||
+            snapshot.data?.active != true ||
+            snapshot.data?.isAdmin != true) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('পরিবার পরিচালনা')),
+            body: const Center(
+              child: Text(
+                'পরিবার পরিচালনার জন্য সক্রিয় Admin-এর অধিকার প্রয়োজন।',
+              ),
+            ),
+          );
+        }
+        return _managementScreen(context);
+      },
+    );
+  }
+
+  Widget _managementScreen(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(title: const Text('পরিবার পরিচালনা')),
       body: StreamBuilder<BazzerFamily?>(
-        stream: repository.watchFamily(family.id),
+        stream: _familyStream,
         builder: (context, familySnapshot) {
+          if (familySnapshot.hasError) {
+            return const Center(
+              child: Text(
+                'পরিবারের তথ্য পড়ার অনুমতি নেই। মূল Admin-এর সঙ্গে যোগাযোগ করুন।',
+              ),
+            );
+          }
           final current = familySnapshot.data ?? family;
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'পরিবারের কোড',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      SelectableText(
-                        current.inviteCode,
-                        style: const TextStyle(
-                          fontSize: 22,
-                          letterSpacing: 2,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: () async {
-                          await Clipboard.setData(
-                            ClipboardData(text: current.inviteCode),
-                          );
-                          if (context.mounted) {
-                            _message(context, 'কোড কপি হয়েছে।');
-                          }
-                        },
-                        icon: const Icon(Icons.copy_rounded),
-                        label: const Text('কপি করুন'),
-                      ),
-                      Text(
-                        'শুধু পরিচিত পরিবারের সদস্যদের কোড দিন।',
-                        style: TextStyle(color: colors.onSurfaceVariant),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              _FamilyCodeCard(family: current),
               SwitchListTile.adaptive(
                 title: const Text('নতুন সদস্য যুক্ত হতে পারবে'),
                 subtitle: const Text(
@@ -345,12 +556,15 @@ class BazzerFamilyManagePage extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               StreamBuilder<List<BazzerMember>>(
-                stream: repository.watchMembers(family.id),
+                stream: _membersStream,
                 builder: (context, snapshot) {
                   if (snapshot.hasError) {
                     return const Text(
                       'সদস্য দেখানো যায়নি। Firestore rules পরীক্ষা করুন।',
                     );
+                  }
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
                   }
                   final members = snapshot.data ?? const <BazzerMember>[];
                   return Column(
@@ -375,53 +589,65 @@ class BazzerFamilyManagePage extends StatelessWidget {
                               member.active ? 'যুক্ত আছেন' : 'বাদ দেওয়া হয়েছে',
                             ].join(' • '),
                           ),
-                          trailing: PopupMenuButton<String>(
-                            tooltip: '${member.name} পরিচালনা',
-                            onSelected: (choice) {
-                              if (choice == 'name') _rename(context, member);
-                              if (choice == 'admin') _setAdmin(context, member);
-                              if (choice == 'secure') {
-                                _setSecure(context, member);
-                              }
-                              if (choice == 'active') {
-                                _setActive(context, member, !member.active);
-                              }
-                            },
-                            itemBuilder: (_) => [
-                              if (member.uid != currentUid)
-                                const PopupMenuItem(
-                                  value: 'name',
-                                  child: Text('নাম পরিবর্তন'),
+                          trailing: member.uid == currentUid
+                              ? null
+                              : PopupMenuButton<String>(
+                                  tooltip: '${member.name} পরিচালনা',
+                                  onSelected: (choice) {
+                                    if (choice == 'name') {
+                                      _rename(context, member);
+                                    }
+                                    if (choice == 'admin') {
+                                      _setAdmin(context, member);
+                                    }
+                                    if (choice == 'secure') {
+                                      _setSecure(context, member);
+                                    }
+                                    if (choice == 'active') {
+                                      _setActive(
+                                        context,
+                                        member,
+                                        !member.active,
+                                      );
+                                    }
+                                  },
+                                  itemBuilder: (_) => [
+                                    if (member.uid != currentUid)
+                                      const PopupMenuItem(
+                                        value: 'name',
+                                        child: Text('নাম পরিবর্তন'),
+                                      ),
+                                    if (member.active &&
+                                        member.uid != currentUid)
+                                      PopupMenuItem(
+                                        value: 'admin',
+                                        child: Text(
+                                          member.isAdmin
+                                              ? 'Admin সরিয়ে দিন'
+                                              : 'Admin করুন',
+                                        ),
+                                      ),
+                                    if (member.active &&
+                                        member.uid != currentUid)
+                                      PopupMenuItem(
+                                        value: 'secure',
+                                        child: Text(
+                                          member.secure
+                                              ? 'Normal করুন'
+                                              : 'Secure করুন',
+                                        ),
+                                      ),
+                                    if (member.uid != currentUid)
+                                      PopupMenuItem(
+                                        value: 'active',
+                                        child: Text(
+                                          member.active
+                                              ? 'সদস্য বাদ দিন'
+                                              : 'আবার যুক্ত করুন',
+                                        ),
+                                      ),
+                                  ],
                                 ),
-                              if (member.active && member.uid != currentUid)
-                                PopupMenuItem(
-                                  value: 'admin',
-                                  child: Text(
-                                    member.isAdmin
-                                        ? 'Admin সরিয়ে দিন'
-                                        : 'Admin করুন',
-                                  ),
-                                ),
-                              if (member.active && member.uid != currentUid)
-                                PopupMenuItem(
-                                  value: 'secure',
-                                  child: Text(
-                                    member.secure
-                                        ? 'Normal করুন'
-                                        : 'Secure করুন',
-                                  ),
-                                ),
-                              if (member.uid != currentUid)
-                                PopupMenuItem(
-                                  value: 'active',
-                                  child: Text(
-                                    member.active
-                                        ? 'সদস্য বাদ দিন'
-                                        : 'আবার যুক্ত করুন',
-                                  ),
-                                ),
-                            ],
-                          ),
                         ),
                     ],
                   );

@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/bazzer_item_model.dart';
+import '../models/bazzer_expense.dart';
+import '../utils/bazzer_receipt.dart';
 import '../utils/store_category.dart';
 
 class BazzerFamily {
@@ -77,6 +79,9 @@ class BazzerRepository {
   final FirebaseFirestore _db;
   final FirebaseAuth _auth;
 
+  User? get signedInUser => _auth.currentUser;
+  Stream<User?> authStateChanges() => _auth.authStateChanges();
+
   User get currentUser {
     final user = _auth.currentUser;
     if (user == null) throw StateError('পরিবারে বাজারের জন্য আগে লগইন করুন।');
@@ -133,35 +138,36 @@ class BazzerRepository {
       .snapshots()
       .map((snapshot) => snapshot.docs.map(BazzerMember.fromDocument).toList());
 
-  Stream<List<BazzerItem>> watchItems(
-    String familyId, {
-    required bool isBought,
-  }) => _family(familyId)
-      .collection('items')
-      .where('isBought', isEqualTo: isBought)
-      .snapshots(includeMetadataChanges: true)
-      .map((snapshot) {
-        final list = snapshot.docs
-            .map(
-              (doc) => BazzerItem.fromMap(
-                doc.data(),
-                doc.id,
-                hasPendingWrites: doc.metadata.hasPendingWrites,
-              ),
-            )
-            .toList();
-        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        return list;
-      });
+  Stream<List<BazzerItem>> watchItems(String familyId, {bool? isBought}) {
+    final collection = _family(familyId).collection('items');
+    final Query<Map<String, dynamic>> query = isBought == null
+        ? collection
+        : collection.where('isBought', isEqualTo: isBought);
+    return query.snapshots(includeMetadataChanges: true).map((snapshot) {
+      final list = snapshot.docs
+          .map(
+            (doc) => BazzerItem.fromMap(
+              doc.data(),
+              doc.id,
+              hasPendingWrites: doc.metadata.hasPendingWrites,
+            ),
+          )
+          .toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    });
+  }
 
   Stream<List<BazzerItem>> watchSecureItems(
     String familyId, {
-    required bool isBought,
+    bool? isBought,
     String? authorUid,
   }) {
     final collection = _family(familyId).collection('secure_items');
     final Query<Map<String, dynamic>> query = authorUid == null
-        ? collection.where('isBought', isEqualTo: isBought)
+        ? (isBought == null
+              ? collection
+              : collection.where('isBought', isEqualTo: isBought))
         : collection.where('createdBy', isEqualTo: authorUid);
     return query.snapshots(includeMetadataChanges: true).map((snapshot) {
       final list = snapshot.docs
@@ -173,7 +179,7 @@ class BazzerRepository {
               isSecure: true,
             ),
           )
-          .where((item) => item.isBought == isBought)
+          .where((item) => isBought == null || item.isBought == isBought)
           .toList();
       list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return list;
@@ -354,9 +360,13 @@ class BazzerRepository {
     for (final item in items) {
       if (item.name.trim().isEmpty ||
           item.name.length > 120 ||
+          !item.quantity.isFinite ||
           item.quantity <= 0 ||
           item.quantity > 1000 ||
-          !StoreCategory.all.contains(item.category)) {
+          !StoreCategory.all.contains(item.category) ||
+          (item.pricePaisa != null &&
+              (item.pricePaisa! < 0 ||
+                  item.pricePaisa! > bazzerMaxPricePaisa))) {
         throw FormatException('আইটেমের নাম, পরিমাণ বা দোকান ঠিক নেই।');
       }
       batch.set(_item(familyId, item), {
@@ -366,6 +376,9 @@ class BazzerRepository {
         'category': item.category,
         'isBought': false,
         'createdAt': FieldValue.serverTimestamp(),
+        'clientCreatedAt': Timestamp.fromDate(item.createdAt),
+        'noteDate': item.dayKey,
+        'pricePaisa': item.pricePaisa,
         'addedBy': safeDisplayName,
         'createdBy': user.uid,
         'boughtBy': null,
@@ -384,6 +397,59 @@ class BazzerRepository {
     });
   }
 
+  Future<void> setPrice(String familyId, BazzerItem item, int? paisa) async {
+    if (paisa != null && (paisa < 0 || paisa > bazzerMaxPricePaisa)) {
+      throw const FormatException('সঠিক দাম লিখুন।');
+    }
+    await _item(familyId, item).update({'pricePaisa': paisa});
+  }
+
+  Stream<List<BazzerExpense>> watchExpenses(
+    String familyId,
+    String month, {
+    required bool includeSecure,
+  }) {
+    if (!validBazzerDayKey('$month-01')) {
+      throw const FormatException('সঠিক মাস বেছে নিন।');
+    }
+    final start = DateTime.parse('$month-01');
+    final end = DateTime(
+      start.year,
+      start.month + 1,
+    ).toIso8601String().substring(0, 10);
+    return _family(familyId)
+        .collection(includeSecure ? 'admin_expenses' : 'expenses')
+        .where('day', isGreaterThanOrEqualTo: '$month-01')
+        .where('day', isLessThan: end)
+        .orderBy('day', descending: true)
+        .snapshots(includeMetadataChanges: true)
+        .map(
+          (snapshot) => snapshot.docs.map(BazzerExpense.fromDocument).toList(),
+        );
+  }
+
+  Future<void> saveExpense(String familyId, BazzerExpenseDraft draft) async {
+    final batch = _db.batch();
+    Map<String, Object> data(int total, int count) => {
+      'day': draft.day,
+      'totalPaisa': total,
+      'itemCount': count,
+      'savedBy': currentUser.uid,
+      'savedAt': FieldValue.serverTimestamp(),
+    };
+    // Deterministic date IDs prevent duplicate spending on repeated saves.
+    // Normal readers never receive a combined or secure total.
+    batch.set(
+      _family(familyId).collection('expenses').doc(draft.day),
+      data(draft.sharedPaisa, draft.sharedCount),
+    );
+    batch.set(
+      _family(familyId).collection('admin_expenses').doc(draft.day),
+      data(draft.totalPaisa, draft.itemCount),
+    );
+    await batch.commit();
+  }
+
   Future<void> editItem(
     String familyId,
     BazzerItem item, {
@@ -395,6 +461,7 @@ class BazzerRepository {
     final trimmed = name.trim();
     if (trimmed.isEmpty ||
         trimmed.length > 120 ||
+        !quantity.isFinite ||
         quantity <= 0 ||
         quantity > 1000 ||
         !StoreCategory.all.contains(category) ||

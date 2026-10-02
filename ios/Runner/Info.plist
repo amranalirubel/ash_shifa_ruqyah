@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>বলে বাজারের তালিকা লিখতে মাইক্রোফোন ব্যবহার করা হয়।</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>আপনার বলা বাজারের জিনিসগুলো বাংলায় লিখতে ভয়েস শনাক্ত করা হয়।</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

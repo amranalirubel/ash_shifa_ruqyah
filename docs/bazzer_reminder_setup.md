@@ -54,13 +54,124 @@ removed member's previously downloaded cache cannot be erased remotely;
 queued offline writes made after removal may appear temporarily on that phone
 and then be rejected when connectivity returns.
 
-The speech recognizer is the device's Bengali recognizer. Bengali must be
-installed as an available locale; its quality and offline ability vary by
-device. The app never silently switches to another recognition language.
+The speech recognizer is the device's speech service. The app explicitly
+requests Bengali even if the service omits Bengali from its locale list or
+cannot return that list. Online recognition is allowed; a separate Bengali
+language-pack installation is not an app prerequisite. If one Bengali locale
+is rejected, the other Bengali locale is tried once (bn-BD / bn-IN). The app
+never silently switches to English or the phone's default language. Actual
+recognition still requires microphone permission and a working service, and
+may need internet. Accuracy and offline support depend on the device service.
 One spoken sentence is split into separate products and quantities, including
 `আধা কেজি`, `হাফ কেজি` and `৫০০ গ্রাম`. Every recognized item must be
 reviewed and can be edited or omitted before it is shared. Unknown fragments
 are shown explicitly instead of being guessed.
+
+Tap the family card or the top-right family icon to open family information.
+The owner and active delegated Admins open member management. Ordinary
+members can see and copy the family's invite code, see whether joining is
+enabled, and inspect their current name, role and Normal/Secure information.
+The code comes from the family document they already have permission to read;
+the admin-only member directory and management permissions are unchanged.
+The joining state and role remain live while the page is open: a newly promoted
+Admin gets a working management button, while a removed member loses access.
+If the card says "পরিবারের সদস্য", that account is a member, not the family's
+creator. Only the actual owner or an existing Admin can grant Admin access.
+
+## Daily notes, prices and faster voice
+
+Deploy the updated `firestore.rules` before using this version. New items
+include `noteDate`, `clientCreatedAt` and nullable integer `pricePaisa`; older
+items without these fields remain readable and editable. No data migration or
+seeding is needed. `createdAt` remains a server timestamp for auditing.
+Bangladesh calendar dates (UTC+06) define a family note. Offline items retain
+their original note date and ordering when a later server timestamp arrives.
+
+One shared price panel is fixed below the shopping list, outside both tabs.
+Tap an editable item's name or amount to select it. The row is highlighted and
+the panel identifies the product, quantity, date and current amount. Its single
+Tk 10/20/30/40/50/100/200, +5 and Reset row changes only that item. No item is
+selected automatically; the controls stay disabled until an eligible item is
+selected. Tap another row to move selection or the close icon to clear it.
+The controls fit a standard 360px phone; larger accessibility text or a narrower
+viewport scrolls the same line horizontally. +5 adds Tk 5 to the latest displayed
+amount (20 then +5 is 25), including rapid taps while writes are pending.
+Reset sets an explicit zero. Tap the panel's amount to enter a custom price,
+including paisa, or clear a price. Rows show only the product, quantity and amount.
+
+The shared panel also holds the Bengali voice button. It stays visible while
+scrolling and reserves its own space, so it cannot cover the day's Save button.
+It hides while the keyboard is open. Search, shop and bought/pending tab changes
+clear selection. Deleted, newly hidden or no-longer-editable items are discarded,
+including when an open custom-price dialog returns. Live permission changes
+cannot leave another member's private item selected. This panel-only change
+requires no additional Firestore rule or data migration beyond the daily/monthly
+expense version below.
+
+This is the total price for that item's whole quantity, not a per-kg rate.
+Tapping a preset replaces the price; repeated taps do not add it again. Authors
+and Admins may set or clear prices; unrelated members cannot edit them.
+An optimistic total is displayed immediately and rejected writes roll back.
+Missing prices are shown separately from zero-price items.
+
+Within each date, items are grouped by shop and sorted oldest first, with a
+stable ID tie-break. Rows show only their own amount. One grand total and Save
+button end each daily note. That total includes the full accessible day across
+shops and bought/pending tabs, even when a search or store filter is active;
+a short scope label explains this. Secure items contribute only for users who
+already have permission to read them. Bought/undo does not change this total.
+
+### Saved monthly expenses
+
+Only active family Admins (including the original owner) finalize the family
+expense snapshot. All items in that day must have a price, including explicit
+zero where appropriate, and pending price/item writes must finish first.
+Save writes two documents atomically, using the date as the document ID:
+
+- `shopping_families/{familyId}/expenses/{yyyy-MM-dd}` contains only normal
+  items' total and count; active members may read it.
+- `shopping_families/{familyId}/admin_expenses/{yyyy-MM-dd}` contains the day's
+  full normal-plus-secure total and count; only active Admins may read it.
+
+Neither document contains product names. Rules validate bounded integer paisa,
+counts, matching document dates, the saving Admin and server timestamps, and
+require the shared/private pair to be saved together. Deploy this version's
+`firestore.rules` before using Save. Existing shopping data needs no migration.
+
+The receipt icon in the shopping AppBar opens **মাসিক খরচ**. The separate page
+shows a month selector, that month's saved total, and each saved date and amount.
+Admin revocation immediately replaces the private history with the normal one;
+removed members lose the page's data. Each month query uses a single indexed
+`day` field, so no composite Firestore index is required.
+
+Saving a day again replaces its prior snapshot rather than adding spending
+again. Editing/resetting/deleting current items does not silently rewrite a saved
+expense: press Save again to finalize the new total. Unsaved days do not appear
+in the monthly amount. The app displays an in-progress save until Firestore
+acknowledges it, reports failures, and allows a retry. Keep an internet connection
+for confirmation. A zero-item shared snapshot is hidden from normal history,
+so a private-only shopping day is not displayed as an empty shared receipt.
+
+Voice parsing now uses quantity/unit endings as product boundaries, including
+unknown multiword products: `রসুন ১ কেজি আদা ১ কেজি` produces two items.
+Ambiguous amounts still require review. Explicit stop opens review immediately
+from the displayed partial text. Automatic stop keeps only a 350ms grace period
+for a late final result; the recognizer receives a two-second silence hint.
+Locale discovery is cached and capped at 500ms; a working Bengali locale is
+remembered. Actual microphone/network recognition speed depends on the phone.
+Both bought/pending tabs share two subscriptions, and adding items returns to
+the pending list with search/store filters cleared so the new entries appear.
+
+After the voice/navigation update, fully stop and run the app again (hot
+reload cannot apply AndroidManifest.xml or Info.plist changes). On Android
+the manifest declares internet access and the RecognitionService query.
+On iOS the microphone and speech permission descriptions are included.
+Regression tests cover missing/erroring locale lists, Bengali-only retry,
+stop/final-result delivery, reopening, microphone denial, member/owner card
+navigation, search/filter rebuilds, and a small phone with keyboard insets.
+These tests use a fake recognizer and do not certify recognition on a real
+phone. Test "আলু আধা কেজি তেল এক লিটার", stop/reopen, and both account roles
+on the intended device before distributing the update.
 
 Before merge, review the Flutter and disposable security-rules CI checks.
 After merging and deploying rules to the intended Firebase project, test on

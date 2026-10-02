@@ -105,6 +105,7 @@ class _BazzerEditItemDialogState extends State<BazzerEditItemDialog> {
             decoration: const InputDecoration(labelText: 'পরিমাণ'),
           ),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: _unit,
             decoration: const InputDecoration(labelText: 'একক'),
             items: [
@@ -116,6 +117,7 @@ class _BazzerEditItemDialogState extends State<BazzerEditItemDialog> {
             },
           ),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: _category,
             decoration: const InputDecoration(labelText: 'দোকান'),
             items: [

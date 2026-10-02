@@ -24,6 +24,8 @@ class StoreCategory {
     'ধনেপাতা': vegetable,
     'ধনিয়া': vegetable,
     'আলু': vegetable,
+    'রসুন': vegetable,
+    'আদা': vegetable,
     'পটল': vegetable,
     'বেগুন': vegetable,
     'পেঁয়াজ': vegetable,

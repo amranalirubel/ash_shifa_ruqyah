@@ -6,6 +6,48 @@ import 'package:ash_shifa_ruqyah/features/bazzer_reminder/utils/voice_parser.dar
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('unit endings split garlic and ginger from the reported recording', () {
+    for (final text in [
+      'রসুন ১ কেজি আদা ১ কেজি',
+      'রসুন এক কেজি আদা এক কেজি',
+      'রসুন ১ কেজি আদা ১ কেজি.',
+    ]) {
+      final result = VoiceParser.parsePreview(text);
+      expect(result.needsReview, isEmpty);
+      expect(result.items.map((item) => item.name), ['রসুন', 'আদা']);
+      expect(result.items.map((item) => item.quantity), [1, 1]);
+      expect(result.items.map((item) => item.unit), ['কেজি', 'কেজি']);
+      expect(
+        result.items.every((item) => item.category == StoreCategory.vegetable),
+        isTrue,
+      );
+    }
+  });
+
+  test('units split unfamiliar multiword products without a dictionary', () {
+    final result = VoiceParser.parsePreview(
+      'দেশি জলপাই ৫০০ গ্রাম টক দই ১ কিলোগ্রাম নতুন কাপড় ২ প্যাকেট',
+    );
+    expect(result.needsReview, isEmpty);
+    expect(result.items.map((item) => item.name), [
+      'দেশি জলপাই',
+      'টক দই',
+      'নতুন কাপড়',
+    ]);
+    expect(result.items.map((item) => item.quantity), [500, 1, 2]);
+    expect(result.items.map((item) => item.unit), ['গ্রাম', 'কেজি', 'প্যাকেট']);
+  });
+
+  test(
+    'quantity-first single items and newline boundaries remain supported',
+    () {
+      final result = VoiceParser.parsePreview('১ কেজি রসুন\nআদা আধা কেজি');
+      expect(result.needsReview, isEmpty);
+      expect(result.items.map((item) => item.name), ['রসুন', 'আদা']);
+      expect(result.items.map((item) => item.quantity), [1, 0.5]);
+    },
+  );
+
   test('one unpunctuated sentence becomes separate store-specific items', () {
     final result = VoiceParser.parsePreview(
       'তেল এক লিটার সাবান দুইটা আঠা একটা '

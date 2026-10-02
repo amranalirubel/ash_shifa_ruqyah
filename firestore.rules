@@ -51,7 +51,8 @@ service cloud.firestore {
         ])
         && data.keys().hasOnly([
           'name', 'quantity', 'unit', 'category', 'isBought', 'createdAt',
-          'addedBy', 'createdBy', 'boughtBy', 'boughtAt'
+          'addedBy', 'createdBy', 'boughtBy', 'boughtAt',
+          'noteDate', 'clientCreatedAt', 'pricePaisa'
         ])
         && data.name is string && data.name.size() > 0 && data.name.size() <= 120
         && data.quantity is number && data.quantity > 0 && data.quantity <= 1000
@@ -60,7 +61,13 @@ service cloud.firestore {
           'আঁটি', 'বোতল', 'ডজন', 'হালি'
         ]
         && data.category in ['মুদি', 'সবজি', 'মাছ/মাংস', 'অন্যান্য']
-        && data.addedBy is string && data.addedBy.size() <= 80;
+        && data.addedBy is string && data.addedBy.size() <= 80
+        && (!data.keys().hasAny(['pricePaisa']) || data.pricePaisa == null
+          || (data.pricePaisa is int && data.pricePaisa >= 0 && data.pricePaisa <= 100000000))
+        && (!data.keys().hasAny(['noteDate'])
+          || (data.noteDate is string
+            && data.noteDate.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$')))
+        && (!data.keys().hasAny(['clientCreatedAt']) || data.clientCreatedAt is timestamp);
     }
 
     function validShoppingCreate() {
@@ -93,6 +100,13 @@ service cloud.firestore {
             && request.resource.data.boughtAt == null);
     }
 
+    function shoppingPriceEdit(familyId) {
+      return shoppingMember(familyId)
+        && (shoppingAdmin(familyId) || resource.data.createdBy == request.auth.uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pricePaisa'])
+        && validShoppingItem(request.resource.data);
+    }
+
     function validProfileCreate(userId) {
       return isOwner(userId)
         && request.resource.data.keys().hasAll(['uid', 'name', 'email'])
@@ -108,6 +122,24 @@ service cloud.firestore {
         && request.resource.data.uid == userId
         && request.resource.data.name is string
         && request.resource.data.name.size() <= 120;
+    }
+
+    function validShoppingExpense(data, dayId) {
+      return data.keys().hasAll(['day', 'totalPaisa', 'itemCount', 'savedBy', 'savedAt'])
+        && data.keys().hasOnly(['day', 'totalPaisa', 'itemCount', 'savedBy', 'savedAt'])
+        && data.day == dayId
+        && dayId.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$')
+        && data.itemCount is int && data.itemCount >= 0 && data.itemCount <= 1000000
+        && data.totalPaisa is int && data.totalPaisa >= 0
+        && data.totalPaisa <= data.itemCount * 100000000
+        && data.savedBy == request.auth.uid && data.savedAt == request.time;
+    }
+
+    function validShoppingExpensePair(familyId, dayId) {
+      let shared = getAfter(/databases/$(database)/documents/shopping_families/$(familyId)/expenses/$(dayId)).data;
+      let full = getAfter(/databases/$(database)/documents/shopping_families/$(familyId)/admin_expenses/$(dayId)).data;
+      return validShoppingExpense(shared, dayId) && validShoppingExpense(full, dayId)
+        && shared.totalPaisa <= full.totalPaisa && shared.itemCount <= full.itemCount;
     }
 
     function isMomChildContentDocument(documentId) {
@@ -260,9 +292,26 @@ service cloud.firestore {
       match /items/{itemId} {
         allow get, list: if shoppingMember(familyId);
         allow create: if shoppingMember(familyId) && validShoppingCreate();
-        allow update: if shoppingAuthorEdit(familyId) || shoppingAdminBought(familyId);
+        allow update: if shoppingAuthorEdit(familyId) || shoppingAdminBought(familyId)
+          || shoppingPriceEdit(familyId);
         allow delete: if shoppingMember(familyId)
           && resource.data.createdBy == request.auth.uid;
+      }
+
+      // Paired daily snapshots are saved atomically by family Admins. A normal
+      // member can never read the document containing a combined secure total.
+      match /expenses/{dayId} {
+        allow read: if shoppingMember(familyId);
+        allow create, update: if shoppingAdmin(familyId)
+          && validShoppingExpensePair(familyId, dayId);
+        allow delete: if false;
+      }
+
+      match /admin_expenses/{dayId} {
+        allow read: if shoppingAdmin(familyId);
+        allow create, update: if shoppingAdmin(familyId)
+          && validShoppingExpensePair(familyId, dayId);
+        allow delete: if false;
       }
 
       // Secure items use a separate collection, so old normal lists keep their
@@ -273,7 +322,8 @@ service cloud.firestore {
             && resource.data.createdBy == request.auth.uid);
         allow create: if (shoppingAdmin(familyId) || shoppingSecureMember(familyId))
           && validShoppingCreate();
-        allow update: if shoppingAuthorEdit(familyId) || shoppingAdminBought(familyId);
+        allow update: if shoppingAuthorEdit(familyId) || shoppingAdminBought(familyId)
+          || shoppingPriceEdit(familyId);
         allow delete: if shoppingMember(familyId)
           && resource.data.createdBy == request.auth.uid;
       }
