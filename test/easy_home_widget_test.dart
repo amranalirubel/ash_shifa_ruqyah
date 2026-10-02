@@ -122,12 +122,16 @@ void main() {
       await tester.scrollUntilVisible(
         find.byKey(const ValueKey('utility-copy')),
         150,
+        scrollable: find.byType(Scrollable).first,
       );
+      await tester.pumpAndSettle();
       expect(find.text('ভাগের হিসাব কপি'), findsOneWidget);
       await tester.scrollUntilVisible(
         find.byKey(const ValueKey('utility-amount')),
         -150,
+        scrollable: find.byType(Scrollable).first,
       );
+      await tester.pumpAndSettle();
       await tester.enterText(
         find.byKey(const ValueKey('utility-amount')),
         '২০০',
@@ -260,6 +264,7 @@ void main() {
       await tester.tap(find.byType(NavigationDestination).at(2));
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('রসিদ / ইতিহাস'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('রসিদ / ইতিহাস'));
       await tester.pumpAndSettle();
       expect(find.textContaining('secret-receipt'), findsOneWidget);
