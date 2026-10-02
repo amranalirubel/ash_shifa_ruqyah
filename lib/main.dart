@@ -13,6 +13,7 @@ import 'core/app_theme.dart';
 import 'core/utils/seed_firestore.dart';
 import 'features/auth/screens/home_page.dart';
 import 'features/auth/screens/welcome_page.dart';
+import 'features/easy_home/services/easy_home_reminders.dart';
 import 'utils/seed_mom_child_care_firestore.dart';
 
 const bool _seedFirestore = bool.fromEnvironment('SEED_FIRESTORE');
@@ -40,6 +41,7 @@ Future<void> main() async {
     debugPrint('Screen security initialization skipped: $error');
   }
 
+  EasyHomeReminders.instance.bind();
   runApp(const MyApp());
 
   // Production builds never seed automatically. Run explicitly with:
