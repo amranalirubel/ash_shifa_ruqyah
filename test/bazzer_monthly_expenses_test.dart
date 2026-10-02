@@ -57,6 +57,8 @@ void main() {
     final repo = FakeBazzerRepository(owner: true);
     repo.items.add(product('a', 'রসুন', price: 2000));
     await openPrices(tester, repo);
+    tester.view.physicalSize = const Size(360, 1100);
+    await tester.pumpAndSettle();
     final plus = find.byKey(const ValueKey('plus-five-false-a'));
     final reset = find.byKey(const ValueKey('reset-price-false-a'));
     await reveal(tester, plus);

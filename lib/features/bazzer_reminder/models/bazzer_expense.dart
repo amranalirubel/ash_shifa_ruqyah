@@ -37,7 +37,7 @@ class BazzerExpenseDraft {
     : day = note.day,
       sharedPaisa = note.items
           .where((item) => !item.isSecure)
-          .fold(0, (sum, item) => sum + (item.pricePaisa ?? 0)),
+          .fold(0, (amount, item) => amount + (item.pricePaisa ?? 0)),
       sharedCount = note.items.where((item) => !item.isSecure).length,
       totalPaisa = note.totalPaisa,
       itemCount = note.items.length {
