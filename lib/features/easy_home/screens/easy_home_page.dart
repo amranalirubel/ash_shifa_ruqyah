@@ -41,8 +41,9 @@ class _EasyHomePageState extends State<EasyHomePage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed)
+    if (state == AppLifecycleState.resumed) {
       unawaited(c.ensureRents(force: true));
+    }
   }
 
   @override
@@ -356,10 +357,11 @@ class _EasyHomePageState extends State<EasyHomePage>
                     await Clipboard.setData(
                       ClipboardData(text: c.home!.inviteCode),
                     );
-                    if (mounted)
+                    if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('বাড়ির কোড কপি হয়েছে।')),
                       );
+                    }
                   },
                   icon: const Icon(Icons.copy),
                   label: const Text('কোড কপি করুন'),

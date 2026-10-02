@@ -126,8 +126,9 @@ class EasyHomeNotices extends StatelessWidget {
   String _audience(EasyHomeController c, String audience) {
     if (audience == 'all') return 'বাড়ির সবাই';
     if (audience.startsWith('tenant:')) return 'নির্দিষ্ট ভাড়াটিয়া';
-    if (audience.startsWith('floor:'))
+    if (audience.startsWith('floor:')) {
       return '${bn(audience.substring(6))} তলা';
+    }
     return c.flats
             .where((f) => f.id == audience.substring(5))
             .firstOrNull

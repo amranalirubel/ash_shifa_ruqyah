@@ -95,8 +95,9 @@ class _EasyHomePeopleState extends State<EasyHomePeople> {
       ],
       save: (v) {
         final amount = parsePaisa(v['rent']!);
-        if (amount == null || amount == 0)
+        if (amount == null || amount == 0) {
           throw ArgumentError('সঠিক ভাড়ার পরিমাণ লিখুন।');
+        }
         return c.repository.saveTenant(
           c.homeId!,
           tenantId: tenant?.id,

@@ -126,11 +126,12 @@ class _EasyFormState extends State<_EasyForm> {
       });
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = easyHomeError(e);
           _busy = false;
         });
+      }
     }
   }
 
@@ -246,9 +247,10 @@ class _EasyFormState extends State<_EasyForm> {
                 firstDate: DateTime(2000),
                 lastDate: now,
               );
-              if (date != null && mounted)
+              if (date != null && mounted) {
                 controller.text =
                     '${monthKey(date)}-${date.day.toString().padLeft(2, '0')}';
+              }
             },
     );
   }
@@ -282,7 +284,7 @@ class EasySectionTitle extends StatelessWidget {
         Expanded(
           child: Text(title, style: Theme.of(context).textTheme.titleLarge),
         ),
-        if (action != null) action!,
+        ?action,
       ],
     ),
   );

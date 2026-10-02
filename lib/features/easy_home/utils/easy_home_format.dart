@@ -66,7 +66,7 @@ String easyHomeError(Object error) {
       _ => 'তথ্য সেভ বা লোড করা যায়নি। আবার চেষ্টা করুন।',
     };
   }
-  if (error is StateError) return '${error.message}';
+  if (error is StateError) return error.message;
   if (error is ArgumentError) return '${error.message}';
   return 'কাজটি সম্পন্ন হয়নি। আবার চেষ্টা করুন।';
 }

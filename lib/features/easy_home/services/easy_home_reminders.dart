@@ -54,10 +54,11 @@ class EasyHomeReminders {
   }
 
   Future<void> setDay(int day) async {
-    if (!supported)
+    if (!supported) {
       throw StateError(
         'এই ডিভাইসে মাসিক স্মরণ সমর্থিত নয়। অ্যাপের বকেয়া তালিকা ব্যবহার করুন।',
       );
+    }
     if (day < 1 || day > 28) throw ArgumentError('১–২৮ তারিখ নির্বাচন করুন।');
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) throw StateError('আগে লগইন করুন।');
@@ -93,20 +94,23 @@ class EasyHomeReminders {
   }
 
   Future<void> _schedule(String uid, int day) async {
-    if (FirebaseAuth.instance.currentUser?.uid != uid)
+    if (FirebaseAuth.instance.currentUser?.uid != uid) {
       throw StateError('অ্যাকাউন্ট বদলে গেছে। আবার চেষ্টা করুন।');
+    }
     await _initialize();
     final android = _plugin
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
         >();
-    if (await android?.areNotificationsEnabled() != true)
+    if (await android?.areNotificationsEnabled() != true) {
       throw StateError('ফোনের সেটিংসে অ্যাপের নোটিফিকেশন চালু করুন।');
+    }
     final location = tz.getLocation('Asia/Dhaka');
     final now = tz.TZDateTime.now(location);
     var next = tz.TZDateTime(location, now.year, now.month, day, 9);
-    if (!next.isAfter(now))
+    if (!next.isAfter(now)) {
       next = tz.TZDateTime(location, now.year, now.month + 1, day, 9);
+    }
     await _plugin.zonedSchedule(
       id: notificationId,
       title: 'EasyHome • ভাড়ার সময়',

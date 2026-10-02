@@ -176,8 +176,9 @@ class EasyHomeController extends ChangeNotifier {
             setValue(value);
             _loaded.add(key);
             _emit();
-            if (_loaded.contains('tenants') && _loaded.contains('rents'))
+            if (_loaded.contains('tenants') && _loaded.contains('rents')) {
               unawaited(ensureRents());
+            }
           },
           onError: (Object e) {
             if (epoch == _dataEpoch && !_disposed) {
@@ -214,8 +215,9 @@ class EasyHomeController extends ChangeNotifier {
         generating ||
         homeId == null ||
         !_loaded.contains('rents') ||
-        !_loaded.contains('tenants'))
+        !_loaded.contains('tenants')) {
       return;
+    }
     final now = DateTime.now();
     final existing = rents.map((r) => r.id).toSet();
     final missing = tenants

@@ -54,8 +54,9 @@ class _EasyHomeRentsState extends State<EasyHomeRents> {
       ],
       save: (v) {
         final amount = parsePaisa(v['amount']!);
-        if (amount == null || amount == 0)
+        if (amount == null || amount == 0) {
           throw ArgumentError('সঠিক পরিমাণ লিখুন।');
+        }
         return c.repository.recordPayment(
           homeId,
           rent,
@@ -322,17 +323,20 @@ class EasyHomeReceipts extends StatelessWidget {
     body: StreamBuilder<List<RentPayment>>(
       stream: payments,
       builder: (context, snapshot) {
-        if (snapshot.hasError)
+        if (snapshot.hasError) {
           return EasyEmpty('রসিদ খোলা যায়নি', easyHomeError(snapshot.error!));
-        if (!snapshot.hasData)
+        }
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
+        }
         final rows = [...snapshot.data!]
           ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        if (rows.isEmpty)
+        if (rows.isEmpty) {
           return const EasyEmpty(
             'এখনো জমা নেই',
             'ভাড়া জমা নেওয়ার পর রসিদ এখানে থাকবে।',
           );
+        }
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -370,7 +374,7 @@ class EasyHomeReceipts extends StatelessWidget {
                                   ),
                                 );
                               } catch (_) {
-                                if (context.mounted)
+                                if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                       content: Text(
@@ -378,6 +382,7 @@ class EasyHomeReceipts extends StatelessWidget {
                                       ),
                                     ),
                                   );
+                                }
                               }
                             },
                             icon: const Icon(Icons.share_outlined),

@@ -173,11 +173,13 @@ class EasyHomeRepository {
   ) async {
     _name(name);
     _phone(phone);
-    if (role == UserRole.landlord)
+    if (role == UserRole.landlord) {
       throw StateError('বাড়িওয়ালা হিসেবে যোগ দেওয়া যায় না।');
+    }
     code = code.trim().toUpperCase().replaceAll(' ', '');
-    if (!RegExp(r'^[A-Z2-9]{12}$').hasMatch(code))
+    if (!RegExp(r'^[A-Z2-9]{12}$').hasMatch(code)) {
       throw ArgumentError('সঠিক ১২ অক্ষরের বাড়ির কোড দিন।');
+    }
     final uid = _uid;
     await _db.runTransaction((tx) async {
       final invite = await tx.get(_db.collection('easy_home_codes').doc(code));
@@ -223,10 +225,11 @@ class EasyHomeRepository {
     HomeRequest request, {
     TenantModel? tenant,
   }) async {
-    if (request.role == UserRole.tenant && tenant == null)
+    if (request.role == UserRole.tenant && tenant == null) {
       throw StateError(
         'আগে ভাড়াটিয়ার ফ্ল্যাট ও ভাড়া যোগ করে তাকে নির্বাচন করুন।',
       );
+    }
     await _db.runTransaction((tx) async {
       final requestRef = _collection(id, 'requests').doc(request.id);
       final currentRequest = await tx.get(requestRef);
@@ -254,11 +257,12 @@ class EasyHomeRepository {
           tenant: latest,
         ),
       );
-      if (latest != null)
+      if (latest != null) {
         tx.update(_collection(id, 'tenants').doc(latest.id), {
           'userId': request.id,
           'updatedAt': FieldValue.serverTimestamp(),
         });
+      }
       tx.update(requestRef, {
         'status': 'approved',
         'updatedAt': FieldValue.serverTimestamp(),
@@ -276,17 +280,19 @@ class EasyHomeRepository {
   }
 
   Future<void> removeMember(String id, UserModel member) async {
-    if (member.role == UserRole.landlord)
+    if (member.role == UserRole.landlord) {
       throw StateError('বাড়িওয়ালাকে সরানো যাবে না।');
+    }
     await _db.runTransaction((tx) async {
       final ref = _collection(id, 'members').doc(member.id);
       final snap = await tx.get(ref);
       final current = UserModel.fromMap(_data(snap));
       DocumentSnapshot<Map<String, dynamic>>? tenancy;
-      if (current.tenancyId.isNotEmpty)
+      if (current.tenancyId.isNotEmpty) {
         tenancy = await tx.get(
           _collection(id, 'tenants').doc(current.tenancyId),
         );
+      }
       tx.update(ref, {
         'active': false,
         'updatedAt': FieldValue.serverTimestamp(),
@@ -334,8 +340,9 @@ class EasyHomeRepository {
   Future<void> archiveFlat(String id, FlatModel flat) async {
     await _db.runTransaction((tx) async {
       final ref = _collection(id, 'flats').doc(flat.id);
-      if ((await tx.get(ref)).data()?['tenancyId'] != '')
+      if ((await tx.get(ref)).data()?['tenancyId'] != '') {
         throw StateError('আগে ভাড়াটিয়ার বসবাস শেষ করুন।');
+      }
       tx.update(ref, {'archived': true});
     });
   }
@@ -357,8 +364,9 @@ class EasyHomeRepository {
         dueDay < 1 ||
         dueDay > 28 ||
         startDate.year < 2000 ||
-        startDate.isAfter(DateTime.now()))
+        startDate.isAfter(DateTime.now())) {
       throw ArgumentError('ভাড়া, শুরুর তারিখ ও পরিশোধের দিন সঠিকভাবে দিন।');
+    }
     final ref = tenantId == null
         ? _collection(id, 'tenants').doc()
         : _collection(id, 'tenants').doc(tenantId);
@@ -377,8 +385,9 @@ class EasyHomeRepository {
         throw StateError('ফ্ল্যাটটি খালি নেই। তালিকা আবার দেখুন।');
       }
       if (old != null &&
-          (old.data()?['active'] != true || old.data()?['flatId'] != flat.id))
+          (old.data()?['active'] != true || old.data()?['flatId'] != flat.id)) {
         throw StateError('এই ভাড়াটিয়ার তথ্য পরিবর্তন করা যাবে না।');
+      }
       final details = {
         'name': name.trim(),
         'phone': latinDigits(phone),
@@ -419,13 +428,15 @@ class EasyHomeRepository {
         'endDate': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      if (flat.data()?['tenancyId'] == tenant.id)
+      if (flat.data()?['tenancyId'] == tenant.id) {
         tx.update(flat.reference, {'tenancyId': ''});
-      if (current.userId.isNotEmpty)
+      }
+      if (current.userId.isNotEmpty) {
         tx.update(_collection(id, 'members').doc(current.userId), {
           'active': false,
           'updatedAt': FieldValue.serverTimestamp(),
         });
+      }
     });
   }
 
@@ -484,8 +495,9 @@ class EasyHomeRepository {
         note.trim().length > 300 ||
         amountPaisa == 0 ||
         (amountPaisa < 0 && (method != 'correction' || note.trim().isEmpty)) ||
-        (amountPaisa > 0 && method == 'correction'))
+        (amountPaisa > 0 && method == 'correction')) {
       throw ArgumentError('সঠিক পরিমাণ ও সংশোধনের কারণ দিন।');
+    }
     final ref = _collection(id, 'rents').doc(rent.id);
     final receipt = ref.collection('payments').doc(paymentId);
     // Some Firestore backends evaluate ledger rules before reporting a
@@ -533,8 +545,9 @@ class EasyHomeRepository {
       } on FirebaseException catch (error) {
         if (error.code != 'permission-denied' ||
             attempt >= 2 ||
-            observedPaid == null)
+            observedPaid == null) {
           rethrow;
+        }
         final current = await ref.get(const GetOptions(source: Source.server));
         if (current.data()?['paidPaisa'] == observedPaid) rethrow;
       }
@@ -547,8 +560,9 @@ class EasyHomeRepository {
     required String audience,
     required bool emergency,
   }) async {
-    if (content.trim().isEmpty || content.trim().length > 2000)
+    if (content.trim().isEmpty || content.trim().length > 2000) {
       throw ArgumentError('১–২০০০ অক্ষরের নোটিশ লিখুন।');
+    }
     await _db.runTransaction((tx) async {
       tx.set(_collection(id, 'notices').doc(), {
         'content': content.trim(),
@@ -577,8 +591,9 @@ class EasyHomeRepository {
     if (title.trim().isEmpty ||
         title.trim().length > 100 ||
         description.trim().isEmpty ||
-        description.trim().length > 2000)
+        description.trim().length > 2000) {
       throw ArgumentError('শিরোনাম ও সমস্যার বিবরণ লিখুন।');
+    }
     final ref = complaintId == null
         ? _collection(id, 'complaints').doc()
         : _collection(id, 'complaints').doc(complaintId);
@@ -610,8 +625,9 @@ class EasyHomeRepository {
     ComplaintStatus status,
     String response,
   ) async {
-    if (response.trim().length > 1000)
+    if (response.trim().length > 1000) {
       throw ArgumentError('উত্তর ১০০০ অক্ষরের মধ্যে লিখুন।');
+    }
     await _db.runTransaction((tx) async {
       tx.update(_collection(id, 'complaints').doc(complaintId), {
         'status': status.name,
@@ -628,12 +644,14 @@ class EasyHomeRepository {
   }
 
   static void _name(String name) {
-    if (name.trim().isEmpty || name.trim().length > 80)
+    if (name.trim().isEmpty || name.trim().length > 80) {
       throw ArgumentError('নাম ১–৮০ অক্ষরের মধ্যে লিখুন।');
+    }
   }
 
   static void _phone(String phone) {
-    if (!RegExp(r'^\+?[0-9]{10,15}$').hasMatch(latinDigits(phone)))
+    if (!RegExp(r'^\+?[0-9]{10,15}$').hasMatch(latinDigits(phone))) {
       throw ArgumentError('সঠিক মোবাইল নম্বর লিখুন।');
+    }
   }
 }
