@@ -107,6 +107,10 @@ void main() {
     await openPrices(tester, repo);
     await selectPrice(tester, 'a');
     final subscriptions = Map.of(repo.streamCalls);
+    // The collapsed header is lazily removed while viewing list rows.
+    // Scroll it back into the viewport before locating its search field.
+    await tester.drag(find.byType(NestedScrollView), const Offset(0, 900));
+    await tester.pumpAndSettle();
     final search = find.byWidgetPredicate(
       (widget) =>
           widget is TextField &&
