@@ -5,6 +5,7 @@ import 'package:ash_shifa_ruqyah/features/easy_home/models/easy_home_models.dart
 import 'package:ash_shifa_ruqyah/features/easy_home/screens/easy_home_page.dart';
 
 import 'support/fake_easy_home.dart';
+import 'package:ash_shifa_ruqyah/features/easy_home/screens/easy_home_management.dart';
 
 void main() {
   Future<EasyHomeController> mount(
@@ -31,6 +32,119 @@ void main() {
     });
     return controller;
   }
+
+  testWidgets('system and toolbar back return from tabs to summary', (
+    tester,
+  ) async {
+    await mount(tester, FakeEasyHomeRepository());
+    await tester.tap(find.byType(NavigationDestination).at(1));
+    await tester.pumpAndSettle();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+      0,
+    );
+    await tester.tap(find.byType(NavigationDestination).at(2));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+      0,
+    );
+  });
+
+  testWidgets(
+    'owner expense form retries without losing data and report revokes',
+    (tester) async {
+      final repo = FakeEasyHomeRepository();
+      final c = await mount(tester, repo);
+      final context = tester.element(find.byType(EasyHomePage));
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => EasyHomeManagement(
+            controller: c,
+            homeId: c.homeId!,
+            viewerKey: c.member!.accessKey,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('খরচ যোগ করুন'));
+      await tester.tap(find.text('খরচ যোগ করুন'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('title')),
+        'পাম্প মেরামত',
+      );
+      await tester.enterText(find.byKey(const ValueKey('amount')), '১২৩.৪৫');
+      repo.failSave = true;
+      await tester.tap(find.text('সেভ করুন'));
+      await tester.pumpAndSettle();
+      expect(find.text('সংযোগ নেই'), findsOneWidget);
+      repo.failSave = false;
+      await tester.tap(find.text('সেভ করুন'));
+      await tester.pumpAndSettle();
+      expect(repo.expenses.single.amountPaisa, 12345);
+      expect(find.text('পাম্প মেরামত'), findsOneWidget);
+      repo.auth.add(null);
+      await tester.pumpAndSettle();
+      expect(find.text('পাম্প মেরামত'), findsNothing);
+      expect(find.text('হিসাব দেখার অনুমতি নেই'), findsOneWidget);
+      expect(c.expenses, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'utility draft invalidates after editing and system back returns to summary',
+    (tester) async {
+      final repo = FakeEasyHomeRepository();
+      final c = await mount(tester, repo);
+      final context = tester.element(find.byType(EasyHomePage));
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => EasyHomeManagement(
+            controller: c,
+            homeId: c.homeId!,
+            viewerKey: c.member!.accessKey,
+            utility: true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('utility-amount')),
+        '১০০.০১',
+      );
+      await tester.tap(find.text('ভাগ হিসাব করুন'));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('utility-copy')),
+        150,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('ভাগের হিসাব কপি'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('utility-amount')),
+        -150,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('utility-amount')),
+        '২০০',
+      );
+      await tester.pump();
+      expect(find.text('ভাগের হিসাব কপি'), findsNothing);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.byType(EasyHomeManagement), findsNothing);
+      expect(find.byType(EasyHomePage), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   for (final brightness in Brightness.values) {
     testWidgets(
@@ -72,6 +186,7 @@ void main() {
       final repo = FakeEasyHomeRepository(role: UserRole.tenant);
       await mount(tester, repo);
       expect(find.textContaining('বাড়ির কোড:'), findsNothing);
+      expect(repo.calls['expenses'], isNull);
       expect(repo.calls['members'], isNull);
       expect(repo.calls['requests'], isNull);
       await tester.tap(find.byType(NavigationDestination).at(1));
@@ -89,6 +204,7 @@ void main() {
     await mount(tester, repo);
     expect(repo.calls['tenants'], isNull);
     expect(repo.calls['rents'], isNull);
+    expect(repo.calls['expenses'], isNull);
     expect(repo.calls['members'], isNull);
     expect(find.text('ভাড়া'), findsNothing);
   });
@@ -148,6 +264,7 @@ void main() {
       await tester.tap(find.byType(NavigationDestination).at(2));
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('রসিদ / ইতিহাস'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('রসিদ / ইতিহাস'));
       await tester.pumpAndSettle();
       expect(find.textContaining('secret-receipt'), findsOneWidget);

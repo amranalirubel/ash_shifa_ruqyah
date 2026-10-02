@@ -118,6 +118,68 @@ class EasyHomeRepository {
     RentPayment.fromMap,
   );
 
+  Stream<List<HomeExpense>> watchExpenses(String id) =>
+      _rows(_collection(id, 'expenses'), HomeExpense.fromMap);
+
+  String newExpenseId(String id) => _collection(id, 'expenses').doc().id;
+
+  Future<void> addExpense(String homeId, HomeExpense expense) async {
+    if (expense.title.trim().isEmpty ||
+        expense.title.length > 100 ||
+        !expenseCategories.containsKey(expense.category) ||
+        expense.amountPaisa <= 0 ||
+        expense.amountPaisa > 100000000 ||
+        !validExpenseDate(expense.date, DateTime.now()) ||
+        expense.reference.length > 100 ||
+        expense.note.length > 500) {
+      throw ArgumentError('খরচের তথ্য ও তারিখ সঠিকভাবে লিখুন।');
+    }
+    final uid = _uid;
+    final ref = _collection(homeId, 'expenses').doc(expense.id);
+    final values = <String, dynamic>{
+      'title': expense.title.trim(),
+      'category': expense.category,
+      'amountPaisa': expense.amountPaisa,
+      'date': expense.date,
+      'reference': expense.reference.trim(),
+      'note': expense.note.trim(),
+      'recordedBy': uid,
+      'voided': false,
+      'voidReason': '',
+      'voidedAt': null,
+    };
+    await _db.runTransaction((tx) async {
+      final existing = await tx.get(ref);
+      if (existing.exists) {
+        final data = existing.data()!;
+        if (values.entries.every((e) => data[e.key] == e.value)) return;
+        throw StateError('আগের খরচ সেভ হয়েছে। তালিকা দেখে নতুন এন্ট্রি করুন।');
+      }
+      tx.set(ref, {...values, 'createdAt': FieldValue.serverTimestamp()});
+    });
+  }
+
+  Future<void> voidExpense(
+    String homeId,
+    String expenseId,
+    String reason,
+  ) async {
+    if (reason.trim().isEmpty || reason.length > 300) {
+      throw ArgumentError('বাতিলের কারণ লিখুন।');
+    }
+    final ref = _collection(homeId, 'expenses').doc(expenseId);
+    await _db.runTransaction((tx) async {
+      final existing = await tx.get(ref);
+      if (!existing.exists) throw StateError('খরচটি পাওয়া যায়নি।');
+      if (existing.data()!['voided'] == true) return;
+      tx.update(ref, {
+        'voided': true,
+        'voidReason': reason.trim(),
+        'voidedAt': FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
   Future<void> createHome(String name, String ownerName, String phone) async {
     _name(name);
     _name(ownerName);
