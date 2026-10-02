@@ -1,47 +1,39 @@
+import '../utils/easy_home_format.dart';
+
 enum ComplaintStatus { pending, inProgress, resolved }
 
 enum Priority { low, medium, urgent }
 
 class ComplaintModel {
-  final String id;
-  final String tenantId;
-  final String title;
-  final String description;
-  final String? imageUrl;
-  final ComplaintStatus status;
-  final Priority priority;
-
   const ComplaintModel({
     required this.id,
-    required this.tenantId,
+    required this.authorUid,
+    required this.flatCode,
     required this.title,
     required this.description,
-    this.imageUrl,
     required this.status,
     required this.priority,
+    required this.createdAt,
+    this.response = '',
   });
-
-  factory ComplaintModel.fromMap(Map<String, dynamic> map) {
-    return ComplaintModel(
-      id: map['id'],
-      tenantId: map['tenantId'],
-      title: map['title'],
-      description: map['description'],
-      imageUrl: map['imageUrl'],
-      status: ComplaintStatus.values.firstWhere((e) => e.name == map['status']),
-      priority: Priority.values.firstWhere((e) => e.name == map['priority']),
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'tenantId': tenantId,
-      'title': title,
-      'description': description,
-      'imageUrl': imageUrl,
-      'status': status.name,
-      'priority': priority.name,
-    };
-  }
+  final String id, authorUid, flatCode, title, description, response;
+  final ComplaintStatus status;
+  final Priority priority;
+  final DateTime createdAt;
+  String get statusLabel => switch (status) {
+    ComplaintStatus.pending => 'অপেক্ষায়',
+    ComplaintStatus.inProgress => 'কাজ চলছে',
+    ComplaintStatus.resolved => 'সমাধান হয়েছে',
+  };
+  factory ComplaintModel.fromMap(Map<String, dynamic> m) => ComplaintModel(
+    id: m['id'] as String,
+    authorUid: m['authorUid'] as String,
+    flatCode: m['flatCode'] as String,
+    title: m['title'] as String,
+    description: m['description'] as String,
+    response: m['response'] as String? ?? '',
+    status: ComplaintStatus.values.firstWhere((s) => s.name == m['status']),
+    priority: Priority.values.firstWhere((s) => s.name == m['priority']),
+    createdAt: readDate(m['createdAt']),
+  );
 }

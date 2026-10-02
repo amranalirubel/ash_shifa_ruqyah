@@ -1,35 +1,37 @@
-class TenantModel {
-  final String id;
-  final String userId;
-  final String flatId;
-  final double rentAmount;
-  final DateTime startDate;
+import '../utils/easy_home_format.dart';
 
+class TenantModel {
   const TenantModel({
     required this.id,
-    required this.userId,
+    required this.name,
+    required this.phone,
     required this.flatId,
-    required this.rentAmount,
+    required this.flatCode,
+    required this.floor,
+    required this.rentPaisa,
     required this.startDate,
+    this.userId = '',
+    this.dueDay = 5,
+    this.endDate,
+    this.active = true,
   });
-
-  factory TenantModel.fromMap(Map<String, dynamic> map) {
-    return TenantModel(
-      id: map['id'],
-      userId: map['userId'],
-      flatId: map['flatId'],
-      rentAmount: (map['rentAmount'] as num).toDouble(),
-      startDate: DateTime.parse(map['startDate']),
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'userId': userId,
-      'flatId': flatId,
-      'rentAmount': rentAmount,
-      'startDate': startDate.toIso8601String(),
-    };
-  }
+  final String id, userId, name, phone, flatId, flatCode, floor;
+  final int rentPaisa, dueDay;
+  final DateTime startDate;
+  final DateTime? endDate;
+  final bool active;
+  factory TenantModel.fromMap(Map<String, dynamic> m) => TenantModel(
+    id: m['id'] as String,
+    name: m['name'] as String,
+    phone: m['phone'] as String,
+    userId: m['userId'] as String? ?? '',
+    flatId: m['flatId'] as String,
+    flatCode: m['flatCode'] as String,
+    floor: m['floor'] as String,
+    rentPaisa: (m['rentPaisa'] as num).toInt(),
+    dueDay: (m['dueDay'] as num).toInt(),
+    startDate: readDate(m['startDate']),
+    endDate: m['endDate'] == null ? null : readDate(m['endDate']),
+    active: m['active'] == true,
+  );
 }

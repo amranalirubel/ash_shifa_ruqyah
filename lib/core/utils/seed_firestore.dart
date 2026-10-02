@@ -74,80 +74,6 @@ Future<void> seedFirestoreData() async {
     'createdAt': FieldValue.serverTimestamp(),
   });
 
-  await _setDocument(firestore.collection('easy_home'), 'flats', {
-    'list': [
-      {'id': 'flat_101', 'floor': '1', 'unit': 'A', 'code': '101A'},
-      {'id': 'flat_102', 'floor': '1', 'unit': 'B', 'code': '101B'},
-    ],
-    'createdAt': FieldValue.serverTimestamp(),
-  });
-
-  await _setDocument(firestore.collection('easy_home'), 'tenants', {
-    'list': [
-      {
-        'id': 'tenant_1',
-        'userId': 'user_01',
-        'flatId': 'flat_101',
-        'rentAmount': 6500.0,
-        'startDate': '2026-01-01',
-      },
-    ],
-    'createdAt': FieldValue.serverTimestamp(),
-  });
-
-  await _setDocument(firestore.collection('easy_home'), 'rents', {
-    'list': [
-      {
-        'id': 'rent_001',
-        'tenantId': 'tenant_1',
-        'month': '2026-09',
-        'amount': 6500.0,
-        'status': 'paid',
-        'createdAt': '2026-09-12',
-      },
-    ],
-    'createdAt': FieldValue.serverTimestamp(),
-  });
-
-  await _setDocument(firestore.collection('easy_home'), 'complaints', {
-    'list': [
-      {
-        'id': 'comp_001',
-        'tenantId': 'tenant_1',
-        'title': 'পানির সমস্যা',
-        'description': 'বাথরুমে পানি আসছে না।',
-        'status': 'pending',
-        'priority': 'urgent',
-        'imageUrl': null,
-      },
-    ],
-    'createdAt': FieldValue.serverTimestamp(),
-  });
-
-  await _setDocument(firestore.collection('easy_home'), 'notifications', {
-    'list': [
-      {
-        'id': 'note_001',
-        'message': 'সামাজিক নিরাপত্তা ও পরিচ্ছন্নতা কার্যক্রম শুরু হয়েছে।',
-        'type': 'info',
-        'createdAt': '2026-09-12',
-      },
-    ],
-    'createdAt': FieldValue.serverTimestamp(),
-  });
-
-  await _setDocument(firestore.collection('easy_home'), 'users', {
-    'list': [
-      {
-        'id': 'user_01',
-        'name': 'Demo Tenant',
-        'role': 'tenant',
-        'email': 'tenant@example.com',
-      },
-    ],
-    'createdAt': FieldValue.serverTimestamp(),
-  });
-
   await seedBasicsOfRuqyah();
 
   await _setDocument(firestore.collection('ruqyah'), 'problems', {
@@ -282,21 +208,18 @@ Future<void> seedBasicsOfRuqyah() async {
   final List<Map<String, dynamic>> data = [
     {
       'title': 'রুকইয়াহ কী?',
-      'description':
-          'রুকইয়াহ শুধুমাত্র কিছু আয়াত বা দোয়া পড়ার নাম নয়; এটি একজন মুমিনের আল্লাহর প্রতি পূর্ণ নির্ভরতা, আত্মশুদ্ধি ও আধ্যাত্মিক চিকিৎসার একটি গুরুত্বপূর্ণ মাধ্যম।',
+      'description': 'রুকইয়াহ শুধুমাত্র কিছু আয়াত বা দোয়া পড়ার নাম নয়; এটি একজন মুমিনের আল্লাহর প্রতি পূর্ণ নির্ভরতা, আত্মশুদ্ধি ও আধ্যাত্মিক চিকিৎসার একটি গুরুত্বপূর্ণ মাধ্যম।',
     },
     {
       'title': 'রুকইয়াহের মৌলিক বিষয়',
       'items': [
         {
           'title': 'আল্লাহই একমাত্র আরোগ্যদাতা',
-          'description':
-              'রুকইয়াহর প্রথম ও সবচেয়ে গুরুত্বপূর্ণ ভিত্তি হলো এই বিশ্বাস যে প্রকৃত শিফা একমাত্র আল্লাহর পক্ষ থেকেই আসে।',
+          'description': 'রুকইয়াহর প্রথম ও সবচেয়ে গুরুত্বপূর্ণ ভিত্তি হলো এই বিশ্বাস যে প্রকৃত শিফা একমাত্র আল্লাহর পক্ষ থেকেই আসে।',
         },
         {
           'title': 'তাওহীদ ও আল্লাহর উপর ভরসা',
-          'description':
-              'রুকইয়াহর সফলতার অন্যতম শর্ত হলো বিশুদ্ধ তাওহীদ এবং আল্লাহর উপর পূর্ণ ভরসা।',
+          'description': 'রুকইয়াহর সফলতার অন্যতম শর্ত হলো বিশুদ্ধ তাওহীদ এবং আল্লাহর উপর পূর্ণ ভরসা।',
         },
       ],
     },
@@ -305,8 +228,7 @@ Future<void> seedBasicsOfRuqyah() async {
       'items': [
         {
           'title': 'পাপ থেকে বিরত থাকা',
-          'description':
-              'পাপ মানুষের হৃদয়কে দুর্বল করে এবং আধ্যাত্মিক ক্ষতির কারণ হতে পারে।',
+          'description': 'পাপ মানুষের হৃদয়কে দুর্বল করে এবং আধ্যাত্মিক ক্ষতির কারণ হতে পারে।',
         },
         {
           'title': 'আন্তরিক তওবা',
@@ -319,8 +241,7 @@ Future<void> seedBasicsOfRuqyah() async {
       'items': [
         {
           'title': 'নিয়মিত সালাত ও যিকির',
-          'description':
-              'পাঁচ ওয়াক্ত সালাত, কুরআন তিলাওয়াত ও যিকির একজন মুমিনের আত্মাকে শক্তিশালী করে।',
+          'description': 'পাঁচ ওয়াক্ত সালাত, কুরআন তিলাওয়াত ও যিকির একজন মুমিনের আত্মাকে শক্তিশালী করে।',
         },
         {
           'title': 'কুরআন হলো শিফা',

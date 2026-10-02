@@ -1,26 +1,21 @@
 class FlatModel {
-  final String id;
-  final String floor;
-  final String unit;
-  final String code;
-
   const FlatModel({
     required this.id,
     required this.floor,
     required this.unit,
     required this.code,
+    this.tenancyId = '',
+    this.archived = false,
   });
-
-  factory FlatModel.fromMap(Map<String, dynamic> map) {
-    return FlatModel(
-      id: map['id'],
-      floor: map['floor'],
-      unit: map['unit'],
-      code: map['code'],
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {'id': id, 'floor': floor, 'unit': unit, 'code': code};
-  }
+  final String id, floor, unit, code, tenancyId;
+  final bool archived;
+  bool get occupied => tenancyId.isNotEmpty;
+  factory FlatModel.fromMap(Map<String, dynamic> m) => FlatModel(
+    id: m['id'] as String,
+    floor: m['floor'] as String,
+    unit: m['unit'] as String,
+    code: m['code'] as String,
+    tenancyId: m['tenancyId'] as String? ?? '',
+    archived: m['archived'] == true,
+  );
 }

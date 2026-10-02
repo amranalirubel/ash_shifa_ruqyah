@@ -1,0 +1,35 @@
+name: EasyHome Rules CI
+on:
+  pull_request:
+    paths:
+      - firestore.rules
+      - lib/features/easy_home/**
+      - tool/bazzer_rules_test/**
+      - .github/workflows/easy_home_ci.yml
+  push:
+    branches: [main]
+    paths:
+      - firestore.rules
+      - lib/features/easy_home/**
+      - tool/bazzer_rules_test/**
+      - .github/workflows/easy_home_ci.yml
+permissions:
+  contents: read
+jobs:
+  easy-home-rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install rules-test dependencies
+        run: npm install --no-audit --no-fund
+        working-directory: tool/bazzer_rules_test
+      - name: Test EasyHome in a disposable Firestore emulator
+        run: ./tool/bazzer_rules_test/node_modules/.bin/firebase emulators:exec --only firestore --project demo-easy-home-ci "node tool/bazzer_rules_test/easy_home_test.mjs"

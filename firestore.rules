@@ -347,11 +347,242 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // EasyHome still has shared prototype documents. Keep them private and
-    // read-only for regular accounts until moved below users/{uid}/easy_home.
+    // EasyHome: authority comes from the immutable owner UID and server-checked
+    // membership, never from a client-selected role or a private profile link.
+    function ehOwner(homeId) {
+      return signedIn() && get(/databases/$(database)/documents/easy_home_buildings/$(homeId)).data.ownerUid == request.auth.uid;
+    }
+    function ehMember(homeId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/easy_home_buildings/$(homeId)/members/$(request.auth.uid))
+        && get(/databases/$(database)/documents/easy_home_buildings/$(homeId)/members/$(request.auth.uid)).data.active == true;
+    }
+    function ehOwnMember(homeId) {
+      return get(/databases/$(database)/documents/easy_home_buildings/$(homeId)/members/$(request.auth.uid)).data;
+    }
+    function ehManager(homeId) {
+      return ehOwner(homeId) || (ehMember(homeId) && ehOwnMember(homeId).role == 'caretaker');
+    }
+    function ehOwnTenancy(homeId, tenantId) {
+      return ehMember(homeId) && ehOwnMember(homeId).role == 'tenant'
+        && ehOwnMember(homeId).tenancyId == tenantId;
+    }
+    function ehText(value, maximum) {
+      return value is string && value.size() > 0 && value.size() <= maximum;
+    }
+    function ehPhone(value) {
+      return value is string && value.matches('^[+]?[0-9]{10,15}$');
+    }
+    function ehMemberShape(data) {
+      return data.keys().hasAll(['name', 'phone', 'role', 'active', 'tenancyId', 'flatId', 'floor', 'updatedAt'])
+        && data.keys().hasOnly(['name', 'phone', 'role', 'active', 'tenancyId', 'flatId', 'floor', 'updatedAt'])
+        && ehText(data.name, 80) && ehPhone(data.phone) && data.active is bool
+        && data.role in ['landlord', 'tenant', 'caretaker']
+        && data.tenancyId is string && data.tenancyId.size() <= 80
+        && data.flatId is string && data.flatId.size() <= 80
+        && data.floor is string && data.floor.size() <= 3 && data.updatedAt == request.time;
+    }
+    function ehMemberAssignment(homeId, uid, data) {
+      let home = getAfter(/databases/$(database)/documents/easy_home_buildings/$(homeId)).data;
+      return (uid == home.ownerUid && data.role == 'landlord' && data.active
+          && data.tenancyId == '' && data.flatId == '' && data.floor == '')
+        || (uid != home.ownerUid && data.role == 'caretaker'
+          && data.tenancyId == '' && data.flatId == '' && data.floor == '')
+        || (uid != home.ownerUid && data.role == 'tenant' && data.tenancyId != ''
+          && getAfter(/databases/$(database)/documents/easy_home_buildings/$(homeId)/tenants/$(data.tenancyId)).data.flatId == data.flatId
+          && getAfter(/databases/$(database)/documents/easy_home_buildings/$(homeId)/tenants/$(data.tenancyId)).data.floor == data.floor
+          && (!data.active || getAfter(/databases/$(database)/documents/easy_home_buildings/$(homeId)/tenants/$(data.tenancyId)).data.userId == uid));
+    }
+    function ehTenantShape(data) {
+      return data.keys().hasAll(['name','phone','rentPaisa','dueDay','updatedAt','flatId','flatCode','floor','userId','active','startDate','endDate'])
+        && data.keys().hasOnly(['name','phone','rentPaisa','dueDay','updatedAt','flatId','flatCode','floor','userId','active','startDate','endDate'])
+        && ehText(data.name, 80) && ehPhone(data.phone)
+        && data.rentPaisa is int && data.rentPaisa > 0 && data.rentPaisa <= 100000000
+        && data.dueDay is int && data.dueDay >= 1 && data.dueDay <= 28
+        && ehText(data.flatId, 80) && ehText(data.flatCode, 20) && ehText(data.floor, 3)
+        && data.userId is string && data.userId.size() <= 128
+        && data.active is bool && data.startDate is timestamp
+        && (data.endDate == null || data.endDate is timestamp)
+        && data.updatedAt == request.time;
+    }
+    function ehComplaintShape(data) {
+      return data.keys().hasAll(['title','description','priority','updatedAt','authorUid','flatCode','status','response','createdAt'])
+        && data.keys().hasOnly(['title','description','priority','updatedAt','authorUid','flatCode','status','response','createdAt'])
+        && ehText(data.title, 100) && ehText(data.description, 2000)
+        && data.priority in ['low','medium','urgent'] && ehText(data.authorUid, 128)
+        && ehText(data.flatCode, 40) && data.status in ['pending','inProgress','resolved']
+        && data.response is string && data.response.size() <= 1000
+        && data.createdAt is timestamp && data.updatedAt == request.time;
+    }
+
+    match /easy_home_buildings/{homeId} {
+      allow read: if ehMember(homeId);
+      allow create: if signedIn()
+        && request.resource.data.keys().hasAll(['name','ownerUid','inviteCode','joiningEnabled','createdAt','updatedAt'])
+        && request.resource.data.keys().hasOnly(['name','ownerUid','inviteCode','joiningEnabled','createdAt','updatedAt'])
+        && ehText(request.resource.data.name, 80)
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.inviteCode.matches('^[A-Z2-9]{12}$')
+        && request.resource.data.joiningEnabled == true
+        && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
+        && getAfter(/databases/$(database)/documents/easy_home_codes/$(request.resource.data.inviteCode)).data.homeId == homeId;
+      allow update: if ehOwner(homeId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','joiningEnabled','updatedAt'])
+        && ehText(request.resource.data.name, 80) && request.resource.data.joiningEnabled is bool
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+
+      match /members/{uid} {
+        allow get: if isOwner(uid) || ehOwner(homeId);
+        allow list: if ehOwner(homeId);
+        allow create: if signedIn() && ehMemberShape(request.resource.data)
+          && ehMemberAssignment(homeId, uid, request.resource.data)
+          && (ehOwner(homeId)
+            || (request.auth.uid == uid && getAfter(/databases/$(database)/documents/easy_home_buildings/$(homeId)).data.ownerUid == uid));
+        allow update: if ehMemberShape(request.resource.data)
+          && ehMemberAssignment(homeId, uid, request.resource.data)
+          && (ehOwner(homeId) || (isOwner(uid) && resource.data.role != 'landlord'
+            && request.resource.data.active == false
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active','updatedAt'])));
+        allow delete: if false;
+      }
+      match /requests/{uid} {
+        allow get: if isOwner(uid) || ehOwner(homeId);
+        allow list: if ehOwner(homeId);
+        allow create, update: if isOwner(uid)
+          && request.resource.data.keys().hasAll(['name','phone','role','code','status','updatedAt'])
+          && request.resource.data.keys().hasOnly(['name','phone','role','code','status','updatedAt'])
+          && ehText(request.resource.data.name, 80) && ehPhone(request.resource.data.phone)
+          && request.resource.data.role in ['tenant','caretaker'] && request.resource.data.status == 'pending'
+          && request.resource.data.code == get(/databases/$(database)/documents/easy_home_buildings/$(homeId)).data.inviteCode
+          && get(/databases/$(database)/documents/easy_home_buildings/$(homeId)).data.joiningEnabled == true
+          && request.resource.data.updatedAt == request.time;
+        allow update: if ehOwner(homeId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt'])
+          && request.resource.data.status in ['approved','rejected'] && request.resource.data.updatedAt == request.time;
+        allow delete: if false;
+      }
+      // Public within the building: no names, phone numbers or rent amounts.
+      match /flats/{flatId} {
+        allow read: if ehMember(homeId);
+        allow create: if ehOwner(homeId)
+          && request.resource.data.keys().hasAll(['floor','unit','code','tenancyId','archived'])
+          && request.resource.data.keys().hasOnly(['floor','unit','code','tenancyId','archived'])
+          && request.resource.data.floor.matches('^(G|B[1-9]|[0-9]{1,2})$')
+          && request.resource.data.unit.matches('^[A-Z]{1,2}$')
+          && flatId == request.resource.data.floor + '_' + request.resource.data.unit
+          && request.resource.data.code.matches('^[A-Z0-9]{2,5}-[A-Z2-9]{4}$')
+          && request.resource.data.tenancyId == '' && request.resource.data.archived == false;
+        allow update: if ehOwner(homeId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tenancyId','archived'])
+          && request.resource.data.archived is bool && request.resource.data.tenancyId is string
+          && request.resource.data.tenancyId.size() <= 80
+          && (!request.resource.data.archived || request.resource.data.tenancyId == '')
+          && (request.resource.data.tenancyId == ''
+            || (getAfter(/databases/$(database)/documents/easy_home_buildings/$(homeId)/tenants/$(request.resource.data.tenancyId)).data.flatId == flatId
+              && getAfter(/databases/$(database)/documents/easy_home_buildings/$(homeId)/tenants/$(request.resource.data.tenancyId)).data.active == true));
+        allow delete: if false;
+      }
+      match /tenants/{tenantId} {
+        allow read: if ehOwner(homeId) || ehOwnTenancy(homeId, tenantId);
+        allow create: if ehOwner(homeId) && ehTenantShape(request.resource.data)
+          && request.resource.data.userId == '' && request.resource.data.active == true
+          && request.resource.data.endDate == null && request.resource.data.startDate <= request.time
+          && getAfter(/databases/$(database)/documents/easy_home_buildings/$(homeId)/flats/$(request.resource.data.flatId)).data.tenancyId == tenantId
+          && getAfter(/databases/$(database)/documents/easy_home_buildings/$(homeId)/flats/$(request.resource.data.flatId)).data.code == request.resource.data.flatCode
+          && getAfter(/databases/$(database)/documents/easy_home_buildings/$(homeId)/flats/$(request.resource.data.flatId)).data.floor == request.resource.data.floor;
+        allow update: if ehTenantShape(request.resource.data)
+          && ((ehOwner(homeId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','phone','rentPaisa','dueDay','userId','active','endDate','updatedAt'])
+            && (request.resource.data.active ? request.resource.data.endDate == null : request.resource.data.endDate is timestamp))
+          || (ehOwnTenancy(homeId, tenantId) && resource.data.userId == request.auth.uid
+            && request.resource.data.userId == ''
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['userId','updatedAt'])
+            && getAfter(/databases/$(database)/documents/easy_home_buildings/$(homeId)/members/$(request.auth.uid)).data.active == false));
+        allow delete: if false;
+      }
+      match /rents/{rentId} {
+        allow read: if ehOwner(homeId) || ehOwnTenancy(homeId, resource.data.tenantId);
+        allow create: if ehOwner(homeId)
+          && request.resource.data.keys().hasAll(['tenantId','flatCode','month','amountPaisa','paidPaisa','dueDate','lastPaymentId','createdAt','updatedAt'])
+          && request.resource.data.keys().hasOnly(['tenantId','flatCode','month','amountPaisa','paidPaisa','dueDate','lastPaymentId','createdAt','updatedAt'])
+          && ehText(request.resource.data.tenantId, 80) && ehText(request.resource.data.flatCode, 20)
+          && request.resource.data.month.matches('^[0-9]{4}-(0[1-9]|1[0-2])$')
+          && rentId == request.resource.data.tenantId + '_' + request.resource.data.month
+          && request.resource.data.amountPaisa is int && request.resource.data.amountPaisa > 0 && request.resource.data.amountPaisa <= 100000000
+          && request.resource.data.amountPaisa == get(/databases/$(database)/documents/easy_home_buildings/$(homeId)/tenants/$(request.resource.data.tenantId)).data.rentPaisa
+          && request.resource.data.flatCode == get(/databases/$(database)/documents/easy_home_buildings/$(homeId)/tenants/$(request.resource.data.tenantId)).data.flatCode
+          && request.resource.data.paidPaisa is int && request.resource.data.paidPaisa == 0 && request.resource.data.lastPaymentId == ''
+          && request.resource.data.dueDate is timestamp && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
+        allow update: if ehOwner(homeId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paidPaisa','lastPaymentId','updatedAt'])
+          && request.resource.data.paidPaisa is int && request.resource.data.paidPaisa >= 0
+          && request.resource.data.paidPaisa <= resource.data.amountPaisa && request.resource.data.updatedAt == request.time
+          && ehText(request.resource.data.lastPaymentId, 80)
+          && !exists(/databases/$(database)/documents/easy_home_buildings/$(homeId)/rents/$(rentId)/payments/$(request.resource.data.lastPaymentId))
+          && getAfter(/databases/$(database)/documents/easy_home_buildings/$(homeId)/rents/$(rentId)/payments/$(request.resource.data.lastPaymentId)).data.amountPaisa == request.resource.data.paidPaisa - resource.data.paidPaisa
+          && getAfter(/databases/$(database)/documents/easy_home_buildings/$(homeId)/rents/$(rentId)/payments/$(request.resource.data.lastPaymentId)).data.balancePaisa == request.resource.data.paidPaisa;
+        allow delete: if false;
+        match /payments/{paymentId} {
+          allow read: if ehOwner(homeId) || ehOwnTenancy(homeId, get(/databases/$(database)/documents/easy_home_buildings/$(homeId)/rents/$(rentId)).data.tenantId);
+          allow create: if ehOwner(homeId)
+            && request.resource.data.keys().hasAll(['amountPaisa','balancePaisa','method','note','recordedBy','createdAt'])
+            && request.resource.data.keys().hasOnly(['amountPaisa','balancePaisa','method','note','recordedBy','createdAt'])
+            && request.resource.data.amountPaisa is int && request.resource.data.amountPaisa != 0
+            && request.resource.data.balancePaisa is int && request.resource.data.balancePaisa >= 0
+            && request.resource.data.method in ['cash','bank','mobile','correction']
+            && request.resource.data.note is string && request.resource.data.note.size() <= 300
+            && (request.resource.data.amountPaisa > 0 ? request.resource.data.method != 'correction'
+              : request.resource.data.method == 'correction' && request.resource.data.note.size() > 0)
+            && request.resource.data.recordedBy == request.auth.uid && request.resource.data.createdAt == request.time
+            && getAfter(/databases/$(database)/documents/easy_home_buildings/$(homeId)/rents/$(rentId)).data.lastPaymentId == paymentId
+            && getAfter(/databases/$(database)/documents/easy_home_buildings/$(homeId)/rents/$(rentId)).data.paidPaisa == request.resource.data.balancePaisa
+            && request.resource.data.balancePaisa == get(/databases/$(database)/documents/easy_home_buildings/$(homeId)/rents/$(rentId)).data.paidPaisa + request.resource.data.amountPaisa;
+          allow update, delete: if false;
+        }
+      }
+      match /notices/{noticeId} {
+        allow read: if ehManager(homeId) || (ehMember(homeId)
+          && resource.data.audience in ['all', 'floor:' + ehOwnMember(homeId).floor, 'flat:' + ehOwnMember(homeId).flatId, 'tenant:' + ehOwnMember(homeId).tenancyId]);
+        allow create: if ehManager(homeId)
+          && request.resource.data.keys().hasAll(['content','audience','emergency','senderId','createdAt'])
+          && request.resource.data.keys().hasOnly(['content','audience','emergency','senderId','createdAt'])
+          && ehText(request.resource.data.content, 2000) && ehText(request.resource.data.audience, 90)
+          && (request.resource.data.audience == 'all' || request.resource.data.audience.matches('^(floor|flat|tenant):[A-Za-z0-9_]+$'))
+          && request.resource.data.emergency is bool && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.createdAt == request.time;
+        allow update: if false;
+        allow delete: if ehOwner(homeId) || (ehManager(homeId) && resource.data.senderId == request.auth.uid);
+      }
+      match /complaints/{complaintId} {
+        allow read: if ehManager(homeId) || (ehMember(homeId) && resource.data.authorUid == request.auth.uid);
+        allow create: if ehMember(homeId) && ehComplaintShape(request.resource.data)
+          && request.resource.data.authorUid == request.auth.uid && request.resource.data.status == 'pending'
+          && request.resource.data.response == '' && request.resource.data.createdAt == request.time
+          && (ehManager(homeId) || request.resource.data.flatCode == get(/databases/$(database)/documents/easy_home_buildings/$(homeId)/flats/$(ehOwnMember(homeId).flatId)).data.code);
+        allow update: if ehComplaintShape(request.resource.data)
+          && ((ehManager(homeId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','response','updatedAt']))
+          || (ehMember(homeId) && resource.data.authorUid == request.auth.uid && resource.data.status == 'pending'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','description','priority','updatedAt'])));
+        allow delete: if ehMember(homeId) && resource.data.authorUid == request.auth.uid && resource.data.status == 'pending';
+      }
+    }
+    match /easy_home_codes/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn() && code.matches('^[A-Z2-9]{12}$')
+        && request.resource.data.keys().hasAll(['homeId','createdAt'])
+        && request.resource.data.keys().hasOnly(['homeId','createdAt'])
+        && ehText(request.resource.data.homeId, 80) && request.resource.data.createdAt == request.time
+        && getAfter(/databases/$(database)/documents/easy_home_buildings/$(request.resource.data.homeId)).data.ownerUid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/easy_home_buildings/$(request.resource.data.homeId)).data.inviteCode == code;
+      allow update, delete: if false;
+    }
+
+    // Keep legacy prototype records intact, but never disclose mixed-household
+    // contact/rent data to ordinary accounts or import it without known owners.
     match /easy_home/{document=**} {
-      allow read: if signedIn();
-      allow create, update: if isAdmin();
+      allow read, create, update: if isAdmin();
       allow delete: if false;
     }
 

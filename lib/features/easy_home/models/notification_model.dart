@@ -1,41 +1,24 @@
-enum NotificationType { all, floor, flat, emergency }
+import '../utils/easy_home_format.dart';
 
 class NotificationModel {
-  final String id;
-  final String senderId;
-  final NotificationType type;
-  final String target;
-  final String content;
-  final DateTime createdAt;
-
   const NotificationModel({
     required this.id,
     required this.senderId,
-    required this.type,
-    required this.target,
+    required this.audience,
     required this.content,
     required this.createdAt,
+    this.emergency = false,
   });
-
-  factory NotificationModel.fromMap(Map<String, dynamic> map) {
-    return NotificationModel(
-      id: map['id'],
-      senderId: map['senderId'],
-      type: NotificationType.values.firstWhere((e) => e.name == map['type']),
-      target: map['target'],
-      content: map['content'],
-      createdAt: DateTime.parse(map['createdAt']),
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'senderId': senderId,
-      'type': type.name,
-      'target': target,
-      'content': content,
-      'createdAt': createdAt.toIso8601String(),
-    };
-  }
+  final String id, senderId, audience, content;
+  final bool emergency;
+  final DateTime createdAt;
+  factory NotificationModel.fromMap(Map<String, dynamic> m) =>
+      NotificationModel(
+        id: m['id'] as String,
+        senderId: m['senderId'] as String,
+        audience: m['audience'] as String,
+        content: m['content'] as String,
+        emergency: m['emergency'] == true,
+        createdAt: readDate(m['createdAt']),
+      );
 }
