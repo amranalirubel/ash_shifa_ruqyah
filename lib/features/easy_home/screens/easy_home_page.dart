@@ -13,6 +13,7 @@ import '../widgets/easy_home_widgets.dart';
 import 'easy_home_people.dart';
 import 'easy_home_rents.dart';
 import 'easy_home_messages.dart';
+import 'easy_home_management.dart';
 
 class EasyHomePage extends StatefulWidget {
   const EasyHomePage({super.key, this.controller});
@@ -244,73 +245,97 @@ class _EasyHomePageState extends State<EasyHomePage>
           _ => _dashboard(sections),
         };
       }
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('ইজি হোম'),
-          actions: [
-            if (c.isLandlord)
+      return PopScope<Object?>(
+        canPop: !c.active || tab == 0,
+        onPopInvokedWithResult: (didPop, result) {
+          if (!didPop && c.active && tab != 0) {
+            setState(() => _tab = 0);
+          }
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            title: Text(tab == 0 ? 'ইজি হোম' : sections[tab].$1),
+            leading: c.active && tab != 0
+                ? BackButton(onPressed: () => setState(() => _tab = 0))
+                : null,
+            actions: [
+              if (c.isLandlord)
+                IconButton(
+                  tooltip: 'বাড়ির সেটিংস',
+                  onPressed: _settings,
+                  icon: const Icon(Icons.settings_outlined),
+                ),
               IconButton(
-                tooltip: 'বাড়ির সেটিংস',
-                onPressed: _settings,
-                icon: const Icon(Icons.settings_outlined),
+                tooltip: 'আবার লোড করুন',
+                onPressed: c.retry,
+                icon: const Icon(Icons.refresh),
               ),
-            IconButton(
-              tooltip: 'আবার লোড করুন',
-              onPressed: c.retry,
-              icon: const Icon(Icons.refresh),
-            ),
-          ],
-        ),
-        body: SafeArea(
-          child: Column(
-            children: [
-              if (c.active && c.cached)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(10),
-                  color: Theme.of(context).colorScheme.secondaryContainer,
-                  child: const Text(
-                    'ডিভাইসে সংরক্ষিত তথ্য • পরিবর্তন করতে ইন্টারনেট প্রয়োজন',
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              if (c.generating) const LinearProgressIndicator(),
-              if (c.billingError != null)
-                Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Wrap(
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Text('কিছু মাসের বিল তৈরি হয়নি। ${c.billingError}'),
-                      TextButton(
-                        onPressed: () => c.ensureRents(force: true),
-                        child: const Text('আবার তৈরি করুন'),
-                      ),
-                    ],
-                  ),
-                ),
-              Expanded(child: content),
             ],
           ),
-        ),
-        bottomNavigationBar: c.active && c.error == null
-            ? NavigationBar(
-                selectedIndex: tab,
-                onDestinationSelected: (v) => setState(() => _tab = v),
-                labelBehavior:
-                    NavigationDestinationLabelBehavior.onlyShowSelected,
-                destinations: [
-                  for (final section in sections)
-                    NavigationDestination(
-                      icon: Icon(section.$2),
-                      label: section.$1,
+          body: SafeArea(
+            child: Column(
+              children: [
+                if (c.active && c.cached)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    color: Theme.of(context).colorScheme.secondaryContainer,
+                    child: const Text(
+                      'ডিভাইসে সংরক্ষিত তথ্য • পরিবর্তন করতে ইন্টারনেট প্রয়োজন',
+                      textAlign: TextAlign.center,
                     ),
-                ],
-              )
-            : null,
+                  ),
+                if (c.generating) const LinearProgressIndicator(),
+                if (c.billingError != null)
+                  Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text('কিছু মাসের বিল তৈরি হয়নি। ${c.billingError}'),
+                        TextButton(
+                          onPressed: () => c.ensureRents(force: true),
+                          child: const Text('আবার তৈরি করুন'),
+                        ),
+                      ],
+                    ),
+                  ),
+                Expanded(child: content),
+              ],
+            ),
+          ),
+          bottomNavigationBar: c.active && c.error == null
+              ? NavigationBar(
+                  selectedIndex: tab,
+                  onDestinationSelected: (v) => setState(() => _tab = v),
+                  labelBehavior:
+                      NavigationDestinationLabelBehavior.onlyShowSelected,
+                  destinations: [
+                    for (final section in sections)
+                      NavigationDestination(
+                        icon: Icon(section.$2),
+                        label: section.$1,
+                      ),
+                  ],
+                )
+              : null,
+        ),
       );
     },
   );
+  void _management({bool utility = false}) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => EasyHomeManagement(
+          controller: c,
+          homeId: c.homeId!,
+          viewerKey: c.member!.accessKey,
+          utility: utility,
+        ),
+      ),
+    );
+  }
+
   Widget _dashboard(List<(String, IconData)> sections) {
     final colors = Theme.of(context).colorScheme;
     final month = monthKey(DateTime.now());
@@ -319,6 +344,10 @@ class _EasyHomePageState extends State<EasyHomePage>
       0,
       (int value, r) => value + r.paidPaisa,
     );
+    final billed = currentRents.fold(0, (int sum, r) => sum + r.amountPaisa);
+    final overdue = c.rents
+        .where((r) => r.overdue(DateTime.now()))
+        .fold(0, (int sum, r) => sum + r.duePaisa);
     final pending = c.complaints
         .where((v) => v.status != ComplaintStatus.resolved)
         .length;
@@ -389,6 +418,23 @@ class _EasyHomePageState extends State<EasyHomePage>
                   ),
                 ),
                 Text('${monthText(month)} • জমা ${money(collected)}'),
+                if (billed > 0) ...[
+                  const SizedBox(height: 12),
+                  LinearProgressIndicator(
+                    value: (collected / billed).clamp(0.0, 1.0),
+                    minHeight: 8,
+                    borderRadius: BorderRadius.circular(8),
+                    semanticsLabel: 'এই মাসের বিলের জমার অগ্রগতি',
+                    semanticsValue: '${(100 * collected / billed).round()}%',
+                  ),
+                  const SizedBox(height: 8),
+                  Text('এই মাসের মোট বিল ${money(billed)}'),
+                ],
+                if (overdue > 0)
+                  Text(
+                    'মেয়াদ পেরোনো বকেয়া ${money(overdue)}',
+                    style: TextStyle(color: colors.error),
+                  ),
                 const SizedBox(height: 8),
                 TextButton.icon(
                   onPressed: () => setState(
@@ -442,6 +488,26 @@ class _EasyHomePageState extends State<EasyHomePage>
               onTap: () => setState(() => _tab = i),
             ),
           ),
+        if (c.isLandlord) ...[
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.analytics_outlined),
+              title: const Text('খরচ ও মাসিক রিপোর্ট'),
+              subtitle: const Text('মেরামত, বেতন, ইউটিলিটি • Excel রিপোর্ট'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _management(),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.calculate_outlined),
+              title: const Text('ইউটিলিটি বিল ভাগ'),
+              subtitle: const Text('সমান বা ব্যবহার অনুযায়ী নির্ভুল হিসাব'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _management(utility: true),
+            ),
+          ),
+        ],
         if (!c.isLandlord)
           TextButton(
             onPressed: () => easyConfirm(

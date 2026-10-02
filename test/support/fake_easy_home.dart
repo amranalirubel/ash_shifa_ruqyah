@@ -31,6 +31,8 @@ class FakeEasyHomeRepository extends Fake implements EasyHomeRepository {
   int generationCount = 0;
   final List<TenantModel> tenants = [];
   final List<RentModel> rents = [];
+  final List<HomeExpense> expenses = [];
+  final expenseChanges = StreamController<List<HomeExpense>>.broadcast();
   Stream<T> replay<T>(String key, T value, [Stream<T>? changes]) {
     calls.update(key, (v) => v + 1, ifAbsent: () => 1);
     return Stream<T>.multi((controller) {
@@ -92,6 +94,18 @@ class FakeEasyHomeRepository extends Fake implements EasyHomeRepository {
   Stream<List<UserModel>> watchMembers(String id) =>
       replay('members', [member]);
   @override
+  Stream<List<HomeExpense>> watchExpenses(String id) =>
+      replay('expenses', expenses, expenseChanges.stream);
+  @override
+  String newExpenseId(String id) => 'expense-id';
+  @override
+  Future<void> addExpense(String homeId, HomeExpense expense) async {
+    if (failSave) throw StateError('সংযোগ নেই');
+    expenses.add(expense);
+    expenseChanges.add([...expenses]);
+  }
+
+  @override
   Stream<List<HomeRequest>> watchRequests(String id) => replay('requests', []);
   @override
   Stream<List<RentPayment>> watchPayments(String id, String rentId) =>
@@ -125,5 +139,6 @@ class FakeEasyHomeRepository extends Fake implements EasyHomeRepository {
     await changes.close();
     await auth.close();
     await rentChanges.close();
+    await expenseChanges.close();
   }
 }

@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import '../controllers/easy_home_controller.dart';
 import '../models/easy_home_models.dart';
 import '../utils/easy_home_format.dart';
+import '../utils/easy_home_reports.dart';
 import '../widgets/easy_home_widgets.dart';
 
 class EasyHomeRents extends StatefulWidget {
@@ -121,17 +122,31 @@ class _EasyHomeRentsState extends State<EasyHomeRents> {
       monthKey(DateTime.now()),
       ...c.rents.map((r) => r.month),
     }.toList()..sort((a, b) => b.compareTo(a));
-    final selectedMonth = months.contains(_month) ? _month : months.first;
-    final monthRents = c.rents.where((r) => r.month == selectedMonth).toList();
+    final selectedMonth = _month == 'all'
+        ? 'all'
+        : months.contains(_month)
+        ? _month
+        : months.first;
+    final monthRents = c.rents
+        .where((r) => selectedMonth == 'all' || r.month == selectedMonth)
+        .toList();
     final rents =
         monthRents
             .where(
               (r) =>
                   _status == 'all' ||
-                  (_status == 'due' ? r.duePaisa > 0 : r.duePaisa == 0),
+                  switch (_status) {
+                    'due' => r.duePaisa > 0,
+                    'overdue' => r.overdue(DateTime.now()),
+                    'partial' => r.status == RentStatus.partial,
+                    _ => r.duePaisa == 0,
+                  },
             )
             .toList()
-          ..sort((a, b) => a.flatCode.compareTo(b.flatCode));
+          ..sort((a, b) {
+            final date = a.dueDate.compareTo(b.dueDate);
+            return date == 0 ? a.flatCode.compareTo(b.flatCode) : date;
+          });
     final total = monthRents.fold(0, (int n, r) => n + r.amountPaisa);
     final paid = monthRents.fold(0, (int n, r) => n + r.paidPaisa);
     return ListView(
@@ -153,9 +168,12 @@ class _EasyHomeRentsState extends State<EasyHomeRents> {
             labelText: 'হিসাবের মাস',
             border: OutlineInputBorder(),
           ),
-          items: months
-              .map((m) => DropdownMenuItem(value: m, child: Text(monthText(m))))
-              .toList(),
+          items: [
+            const DropdownMenuItem(value: 'all', child: Text('সব মাস')),
+            ...months.map(
+              (m) => DropdownMenuItem(value: m, child: Text(monthText(m))),
+            ),
+          ],
           onChanged: (v) => setState(() => _month = v!),
         ),
         const SizedBox(height: 16),
@@ -176,6 +194,8 @@ class _EasyHomeRentsState extends State<EasyHomeRents> {
             for (final entry in const {
               'all': 'সব',
               'due': 'বকেয়া',
+              'overdue': 'মেয়াদ পেরিয়েছে',
+              'partial': 'আংশিক',
               'paid': 'পরিশোধিত',
             }.entries)
               ChoiceChip(
@@ -185,6 +205,29 @@ class _EasyHomeRentsState extends State<EasyHomeRents> {
               ),
           ],
         ),
+        if (selectedMonth != 'all')
+          TextButton.icon(
+            icon: const Icon(Icons.copy),
+            label: const Text('মাসের হিসাব কপি'),
+            onPressed: () async {
+              await Clipboard.setData(
+                ClipboardData(
+                  text: homeReportText(
+                    c.home!.name,
+                    selectedMonth,
+                    HomeMonthReport(selectedMonth, c.rents, const []),
+                    cached: c.cached,
+                    includeExpenses: false,
+                  ),
+                ),
+              );
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('মাসের হিসাব কপি হয়েছে।')),
+                );
+              }
+            },
+          ),
         const SizedBox(height: 12),
         if (rents.isEmpty)
           EasyEmpty(
@@ -221,6 +264,7 @@ class _EasyHomeRentsState extends State<EasyHomeRents> {
                     ),
                   ],
                 ),
+                Text(monthText(rent.month)),
                 if (c.isLandlord)
                   Text(
                     c.tenants

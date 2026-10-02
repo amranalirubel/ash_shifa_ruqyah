@@ -1,3 +1,4 @@
+import '../../../core/widgets/exit_guard.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -32,130 +33,132 @@ class HomePage extends StatelessWidget {
         ? displayName
         : 'Ash-Shifa Ruqyah';
 
-    return Scaffold(
-      backgroundColor: palette.background,
-      appBar: _DashboardAppBar(
-        name: visibleName,
-        palette: palette,
-        isSignedIn: user != null,
-        onThemePressed: toggleTheme,
-        onLogoutPressed: user == null ? null : () => _logout(context),
-      ),
-      body: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment.topRight,
-            radius: 1.15,
-            colors: [
-              palette.green.withValues(alpha: isDarkMode ? 0.10 : 0.07),
-              palette.background.withValues(alpha: 0),
-              palette.background,
-            ],
-            stops: const [0, 0.52, 1],
-          ),
+    return ExitGuard(
+      child: Scaffold(
+        backgroundColor: palette.background,
+        appBar: _DashboardAppBar(
+          name: visibleName,
+          palette: palette,
+          isSignedIn: user != null,
+          onThemePressed: toggleTheme,
+          onLogoutPressed: user == null ? null : () => _logout(context),
         ),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final singleColumn = constraints.maxWidth < 340;
-            final compactHeight = constraints.maxHeight < 690;
-
-            return CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                SliverPadding(
-                  padding: EdgeInsets.fromLTRB(
-                    18,
-                    compactHeight ? 10 : 16,
-                    18,
-                    0,
-                  ),
-                  sliver: SliverToBoxAdapter(
-                    child: _InspirationCard(
-                      palette: palette,
-                      compact: compactHeight,
-                    ),
-                  ),
-                ),
-                SliverPadding(
-                  padding: EdgeInsets.fromLTRB(
-                    18,
-                    compactHeight ? 14 : 22,
-                    18,
-                    10,
-                  ),
-                  sliver: SliverToBoxAdapter(
-                    child: _SectionHeading(palette: palette),
-                  ),
-                ),
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                  sliver: SliverGrid(
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: singleColumn ? 1 : 2,
-                      mainAxisSpacing: 11,
-                      crossAxisSpacing: 11,
-                      mainAxisExtent: singleColumn
-                          ? 126
-                          : compactHeight
-                          ? 116
-                          : 132,
-                    ),
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      final feature = features[index];
-                      return _FeatureCard(
-                        feature: feature,
-                        palette: palette,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).push(MaterialPageRoute(builder: feature.builder)),
-                      );
-                    }, childCount: features.length),
-                  ),
-                ),
-                SliverPadding(
-                  padding: EdgeInsets.fromLTRB(
-                    18,
-                    compactHeight ? 10 : 18,
-                    18,
-                    compactHeight ? 10 : 22,
-                  ),
-                  sliver: SliverToBoxAdapter(
-                    child: _SafetyNote(palette: palette),
-                  ),
-                ),
+        body: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment.topRight,
+              radius: 1.15,
+              colors: [
+                palette.green.withValues(alpha: isDarkMode ? 0.10 : 0.07),
+                palette.background.withValues(alpha: 0),
+                palette.background,
               ],
-            );
-          },
+              stops: const [0, 0.52, 1],
+            ),
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final singleColumn = constraints.maxWidth < 340;
+              final compactHeight = constraints.maxHeight < 690;
+
+              return CustomScrollView(
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(
+                      18,
+                      compactHeight ? 10 : 16,
+                      18,
+                      0,
+                    ),
+                    sliver: SliverToBoxAdapter(
+                      child: _InspirationCard(
+                        palette: palette,
+                        compact: compactHeight,
+                      ),
+                    ),
+                  ),
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(
+                      18,
+                      compactHeight ? 14 : 22,
+                      18,
+                      10,
+                    ),
+                    sliver: SliverToBoxAdapter(
+                      child: _SectionHeading(palette: palette),
+                    ),
+                  ),
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    sliver: SliverGrid(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: singleColumn ? 1 : 2,
+                        mainAxisSpacing: 11,
+                        crossAxisSpacing: 11,
+                        mainAxisExtent: singleColumn
+                            ? 126
+                            : compactHeight
+                            ? 116
+                            : 132,
+                      ),
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final feature = features[index];
+                        return _FeatureCard(
+                          feature: feature,
+                          palette: palette,
+                          onTap: () => Navigator.of(
+                            context,
+                          ).push(MaterialPageRoute(builder: feature.builder)),
+                        );
+                      }, childCount: features.length),
+                    ),
+                  ),
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(
+                      18,
+                      compactHeight ? 10 : 18,
+                      18,
+                      compactHeight ? 10 : 22,
+                    ),
+                    sliver: SliverToBoxAdapter(
+                      child: _SafetyNote(palette: palette),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
         ),
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: 0,
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        onDestinationSelected: (index) {
-          _openBottomDestination(context, index, isSignedIn: user != null);
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home_rounded),
-            label: 'হোম',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.auto_stories_outlined),
-            selectedIcon: Icon(Icons.auto_stories_rounded),
-            label: 'রুকইয়াহ',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.family_restroom_outlined),
-            selectedIcon: Icon(Icons.family_restroom_rounded),
-            label: 'যত্ন',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline_rounded),
-            selectedIcon: Icon(Icons.person_rounded),
-            label: 'প্রোফাইল',
-          ),
-        ],
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: 0,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          onDestinationSelected: (index) {
+            _openBottomDestination(context, index, isSignedIn: user != null);
+          },
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home_rounded),
+              label: 'হোম',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.auto_stories_outlined),
+              selectedIcon: Icon(Icons.auto_stories_rounded),
+              label: 'রুকইয়াহ',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.family_restroom_outlined),
+              selectedIcon: Icon(Icons.family_restroom_rounded),
+              label: 'যত্ন',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outline_rounded),
+              selectedIcon: Icon(Icons.person_rounded),
+              label: 'প্রোফাইল',
+            ),
+          ],
+        ),
       ),
     );
   }

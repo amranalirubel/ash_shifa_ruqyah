@@ -87,6 +87,33 @@ try {
   await assertFails(updateDoc(ref(owner, memberPath('owner')), { active: false, updatedAt: stamp() }));
   await assertFails(updateDoc(ref(owner, memberPath('alice')), { role: 'landlord', updatedAt: stamp() }));
 
+  // Owner-only append-only expense ledger; a correction must retain its reason.
+  const expensePath = `${home}/expenses/repair1`;
+  const expense = () => ({ title: 'Pump repair', category: 'repair', amountPaisa: 12345,
+    date: '2026-10-02', reference: 'invoice-123', note: '', recordedBy: 'owner',
+    createdAt: stamp(), voided: false, voidReason: '', voidedAt: null });
+  await assertSucceeds(setDoc(ref(owner, expensePath), expense()));
+  await assertSucceeds(getDocs(collection(owner, `${home}/expenses`)));
+  for (const db of [alice, caretaker, outsider, guest]) {
+    await assertFails(getDoc(ref(db, expensePath)));
+    await assertFails(getDocs(collection(db, `${home}/expenses`)));
+    await assertFails(setDoc(ref(db, `${home}/expenses/forged`), expense()));
+    await assertFails(updateDoc(ref(db, expensePath), { voided: true, voidReason: 'forged', voidedAt: stamp() }));
+  }
+  for (const invalid of [{ amountPaisa: 0 }, { amountPaisa: -10 }, { amountPaisa: 1.5 },
+    { amountPaisa: 100000001 }, { category: 'unknown' }, { recordedBy: 'alice' },
+    { date: 'bad' }, { title: '' }, { note: 'x'.repeat(501) }, { extra: 'injected' },
+    { voided: true }, { createdAt: date('2000-01-01') }]) {
+    await assertFails(setDoc(ref(owner, `${home}/expenses/invalid`), { ...expense(), ...invalid }));
+  }
+  await assertFails(setDoc(ref(owner, expensePath), expense()));
+  await assertFails(updateDoc(ref(owner, expensePath), { amountPaisa: 1 }));
+  await assertFails(deleteDoc(ref(owner, expensePath)));
+  await assertFails(updateDoc(ref(owner, expensePath), { voided: true, voidReason: '', voidedAt: stamp() }));
+  await assertSucceeds(updateDoc(ref(owner, expensePath), { voided: true, voidReason: 'Duplicate receipt', voidedAt: stamp() }));
+  await assertFails(updateDoc(ref(owner, expensePath), { voided: false, voidReason: '', voidedAt: null }));
+  await assertFails(updateDoc(ref(owner, expensePath), { voidReason: 'Rewrite history', voidedAt: stamp() }));
+
   const bill = (lease, code) => ({ tenantId: lease, flatCode: code, month: '2026-10', amountPaisa: 650050,
     paidPaisa: 0, dueDate: date('2026-10-05'), lastPaymentId: '', createdAt: stamp(), updatedAt: stamp() });
   const rentA = `${home}/rents/leaseA_2026-10`;

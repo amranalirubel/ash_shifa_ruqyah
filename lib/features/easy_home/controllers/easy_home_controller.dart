@@ -24,6 +24,7 @@ class EasyHomeController extends ChangeNotifier {
   List<FlatModel> flats = [];
   List<TenantModel> tenants = [];
   List<RentModel> rents = [];
+  List<HomeExpense> expenses = [];
   List<ComplaintModel> complaints = [];
   List<NotificationModel> notices = [];
   List<UserModel> members = [];
@@ -37,7 +38,7 @@ class EasyHomeController extends ChangeNotifier {
       'tenants',
       'rents',
     ],
-    if (isLandlord) ...['members', 'requests'],
+    if (isLandlord) ...['members', 'requests', 'expenses'],
   ]);
   bool get active => member?.active == true;
   bool get isLandlord => member?.isLandlord == true;
@@ -79,6 +80,7 @@ class EasyHomeController extends ChangeNotifier {
     flats = [];
     tenants = [];
     rents = [];
+    expenses = [];
     complaints = [];
     notices = [];
     members = [];
@@ -205,6 +207,7 @@ class EasyHomeController extends ChangeNotifier {
       listen('rents', repository.watchRents(id, role), (v) => rents = v);
     }
     if (role.isLandlord) {
+      listen('expenses', repository.watchExpenses(id), (v) => expenses = v);
       listen('members', repository.watchMembers(id), (v) => members = v);
       listen('requests', repository.watchRequests(id), (v) => requests = v);
     }
