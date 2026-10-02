@@ -94,6 +94,26 @@ class _EasyHomeRentsState extends State<EasyHomeRents> {
     );
   }
 
+  void _receipts(RentModel rent) {
+    final homeId = c.homeId!;
+    final viewerKey = c.member!.accessKey;
+    final payments = c.repository.watchPayments(homeId, rent.id);
+    final homeName = c.home?.name ?? 'EasyHome';
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => EasyHomeReceipts(
+          rent: rent,
+          homeName: homeName,
+          payments: payments,
+          controller: c,
+          homeId: homeId,
+          viewerKey: viewerKey,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final months = {
@@ -231,19 +251,7 @@ class _EasyHomeRentsState extends State<EasyHomeRents> {
                         child: const Text('জমা নিন'),
                       ),
                     TextButton(
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute<void>(
-                          builder: (_) => EasyHomeReceipts(
-                            rent: rent,
-                            homeName: c.home?.name ?? 'EasyHome',
-                            payments: c.repository.watchPayments(
-                              c.homeId!,
-                              rent.id,
-                            ),
-                          ),
-                        ),
-                      ),
+                      onPressed: () => _receipts(rent),
                       child: const Text('রসিদ / ইতিহাস'),
                     ),
                     if (c.isLandlord &&
@@ -281,12 +289,35 @@ class EasyHomeReceipts extends StatelessWidget {
     required this.rent,
     required this.homeName,
     required this.payments,
+    required this.controller,
+    required this.homeId,
+    required this.viewerKey,
   });
   final RentModel rent;
   final String homeName;
   final Stream<List<RentPayment>> payments;
+  final EasyHomeController controller;
+  final String homeId, viewerKey;
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: controller,
+    builder: (context, _) {
+      if (!controller.active ||
+          controller.homeId != homeId ||
+          controller.member?.accessKey != viewerKey ||
+          controller.error != null) {
+        return Scaffold(
+          appBar: AppBar(title: const Text('রসিদ')),
+          body: const EasyEmpty(
+            'রসিদ দেখার অনুমতি বদলেছে',
+            'বাড়ির পেজে ফিরে আবার খুলুন।',
+          ),
+        );
+      }
+      return _content(context);
+    },
+  );
+  Widget _content(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text('${rent.flatCode} • রসিদ')),
     body: StreamBuilder<List<RentPayment>>(
       stream: payments,

@@ -27,7 +27,8 @@ class _EasyHomePeopleState extends State<EasyHomePeople> {
     await showEasyForm(
       context,
       title: 'নতুন ফ্ল্যাট',
-      description: 'যেমন: তলা ২, ইউনিট B → 2B-K9X4। খালি পুরোনো ফ্ল্যাট যোগ করলে পুনরায় চালু হবে।',
+      description:
+          'যেমন: তলা ২, ইউনিট B → 2B-K9X4। খালি পুরোনো ফ্ল্যাট যোগ করলে পুনরায় চালু হবে।',
       fields: const [
         EasyField('floor', 'তলা (G, ১, ২…)', maxLength: 3),
         EasyField('unit', 'ইউনিট (A, B…)', maxLength: 2),
@@ -53,7 +54,8 @@ class _EasyHomePeopleState extends State<EasyHomePeople> {
     await showEasyForm(
       context,
       title: tenant == null ? 'ভাড়াটিয়া যোগ করুন' : 'ভাড়াটিয়ার তথ্য',
-      description: 'প্রথম ও শেষ মাসে পুরো মাসের ভাড়া ধরা হবে। ভাড়া বদলালে ইতিমধ্যে তৈরি বিল অপরিবর্তিত থাকবে।',
+      description:
+          'প্রথম ও শেষ মাসে পুরো মাসের ভাড়া ধরা হবে। ভাড়া বদলালে ইতিমধ্যে তৈরি বিল অপরিবর্তিত থাকবে।',
       fields: [
         if (tenant == null)
           EasyField(

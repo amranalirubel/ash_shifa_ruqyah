@@ -17,22 +17,25 @@ TenantModel tenant({DateTime? end, DateTime? start}) => TenantModel(
   active: end == null,
 );
 void main() {
-  test('Bangla decimal rent is exact integer paisa; malformed and huge amounts fail', () {
-    expect(parsePaisa('৬,৫০০.৫০'), 650050);
-    expect(parsePaisa('০.০১'), 1);
-    for (final invalid in [
-      '-1',
-      'NaN',
-      'Infinity',
-      '1e4',
-      '1.001',
-      '1000000.01',
-      '',
-    ]) {
-      expect(parsePaisa(invalid), isNull, reason: invalid);
-    }
-    expect(money(650050), '৳৬৫০০.৫০');
-  });
+  test(
+    'Bangla decimal rent is exact integer paisa; malformed and huge amounts fail',
+    () {
+      expect(parsePaisa('৬,৫০০.৫০'), 650050);
+      expect(parsePaisa('০.০১'), 1);
+      for (final invalid in [
+        '-1',
+        'NaN',
+        'Infinity',
+        '1e4',
+        '1.001',
+        '1000000.01',
+        '',
+      ]) {
+        expect(parsePaisa(invalid), isNull, reason: invalid);
+      }
+      expect(money(650050), '৳৬৫০০.৫০');
+    },
+  );
   test(
     'billing crosses year and leap February and stops at move-out month',
     () {
@@ -58,22 +61,25 @@ void main() {
       );
     },
   );
-  test('partial payments and corrections cannot overpay or make the ledger negative', () {
-    expect(
-      paymentBalance(amount: 650050, paid: 200000, change: 450050),
-      650050,
-    );
-    expect(
-      paymentBalance(amount: 650050, paid: 200000, change: -50000),
-      150000,
-    );
-    for (final delta in [0, -200001, 450051]) {
+  test(
+    'partial payments and corrections cannot overpay or make the ledger negative',
+    () {
       expect(
-        () => paymentBalance(amount: 650050, paid: 200000, change: delta),
-        throwsStateError,
+        paymentBalance(amount: 650050, paid: 200000, change: 450050),
+        650050,
       );
-    }
-  });
+      expect(
+        paymentBalance(amount: 650050, paid: 200000, change: -50000),
+        150000,
+      );
+      for (final delta in [0, -200001, 450051]) {
+        expect(
+          () => paymentBalance(amount: 650050, paid: 200000, change: delta),
+          throwsStateError,
+        );
+      }
+    },
+  );
   test('due calculations and receipts preserve amount and ledger identity', () {
     final rent = RentModel(
       id: 'lease_2026-02',

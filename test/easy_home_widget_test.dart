@@ -127,4 +127,42 @@ void main() {
     expect(find.text('বাড়িওয়ালা • বাড়ি তৈরি'), findsOneWidget);
     expect(find.text('ভাড়াটিয়া / কেয়ারটেকার • যোগ দিন'), findsOneWidget);
   });
+  testWidgets(
+    'an open receipt route hides cached data immediately on revocation',
+    (tester) async {
+      final repo = FakeEasyHomeRepository();
+      final now = DateTime.now();
+      repo.rents.add(
+        RentModel(
+          id: 'bill',
+          tenantId: 'lease',
+          flatCode: '2B-K9X4',
+          month: '${now.year}-${now.month.toString().padLeft(2, '0')}',
+          amountPaisa: 100000,
+          paidPaisa: 100000,
+          dueDate: now,
+          createdAt: now,
+        ),
+      );
+      await mount(tester, repo);
+      await tester.tap(find.byType(NavigationDestination).at(2));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('রসিদ / ইতিহাস'));
+      await tester.tap(find.text('রসিদ / ইতিহাস'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('secret-receipt'), findsOneWidget);
+      repo.changes.add(
+        const UserModel(
+          id: 'me',
+          name: 'রুবেল',
+          phone: '01700000000',
+          role: UserRole.tenant,
+          active: false,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.textContaining('secret-receipt'), findsNothing);
+      expect(find.text('রসিদ দেখার অনুমতি বদলেছে'), findsOneWidget);
+    },
+  );
 }

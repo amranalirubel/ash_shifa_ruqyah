@@ -123,15 +123,28 @@ try {
   await assertFails(updateDoc(ref(owner, `${rentA}/payments/p1`), { amountPaisa: 1 }));
   await assertFails(deleteDoc(ref(owner, `${rentA}/payments/p1`)));
   // The transaction retries rather than losing a concurrent contribution.
-  const add = id => runTransaction(owner, async tx => {
-    const receipt = ref(owner, `${rentA}/payments/${id}`);
-    const exists = await tx.get(receipt);
-    if (exists.exists()) return;
-    const rent = await tx.get(ref(owner, rentA));
-    const next = rent.data().paidPaisa + 1000;
-    tx.set(receipt, { amountPaisa: 1000, balancePaisa: next, method: 'cash', note: '', recordedBy: 'owner', createdAt: stamp() });
-    tx.update(ref(owner, rentA), { paidPaisa: next, lastPaymentId: id, updatedAt: stamp() });
-  });
+  console.log('Testing concurrent payments and idempotent retry');
+  const add = async id => {
+    for (let attempt = 0; ; attempt++) {
+      let observedPaid;
+      try {
+        await runTransaction(owner, async tx => {
+          const receipt = ref(owner, `${rentA}/payments/${id}`);
+          const exists = await tx.get(receipt);
+          if (exists.exists()) return;
+          const rent = await tx.get(ref(owner, rentA));
+          observedPaid = rent.data().paidPaisa;
+          const next = observedPaid + 1000;
+          tx.set(receipt, { amountPaisa: 1000, balancePaisa: next, method: 'cash', note: '', recordedBy: 'owner', createdAt: stamp() });
+          tx.update(ref(owner, rentA), { paidPaisa: next, lastPaymentId: id, updatedAt: stamp() });
+        });
+        return;
+      } catch (error) {
+        if (error.code !== 'permission-denied' || attempt >= 2 || observedPaid === undefined) throw error;
+        if ((await getDoc(ref(owner, rentA))).data().paidPaisa === observedPaid) throw error;
+      }
+    }
+  };
   await assertSucceeds(Promise.all([add('concurrent1'), add('concurrent2')]));
   await assertSucceeds(add('concurrent1'));
   assert.equal((await getDoc(ref(owner, rentA))).data().paidPaisa, 602050);

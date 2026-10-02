@@ -116,7 +116,8 @@ class _EasyHomePageState extends State<EasyHomePage>
     await showEasyForm(
       context,
       title: 'মাসিক ভাড়ার স্মরণ',
-      description: 'এই ফোনে প্রতি মাসের নির্বাচিত দিনে সকাল ৯টায় স্মরণ। সময় বাংলাদেশ অনুযায়ী; ফোনের সেটিংসের কারণে কিছুটা দেরি হতে পারে।',
+      description:
+          'এই ফোনে প্রতি মাসের নির্বাচিত দিনে সকাল ৯টায় স্মরণ। সময় বাংলাদেশ অনুযায়ী; ফোনের সেটিংসের কারণে কিছুটা দেরি হতে পারে।',
       fields: [
         EasyField(
           'day',
@@ -336,8 +337,9 @@ class _EasyHomePageState extends State<EasyHomePage>
               const SizedBox(height: 8),
               Text(
                 c.home!.name,
-                style: Theme.of(context).textTheme.headlineSmall
-                    ?.copyWith(color: colors.onPrimaryContainer),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: colors.onPrimaryContainer,
+                ),
               ),
               Text(
                 '${c.member!.name} • ${c.member!.role.label}',
@@ -380,8 +382,9 @@ class _EasyHomePageState extends State<EasyHomePage>
                 Text(c.isLandlord ? 'সব মাস মিলিয়ে বকেয়া' : 'আপনার মোট বকেয়া'),
                 Text(
                   money(c.totalDue),
-                  style: Theme.of(context).textTheme.headlineMedium
-                      ?.copyWith(fontWeight: FontWeight.bold),
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 Text('${monthText(month)} • জমা ${money(collected)}'),
                 const SizedBox(height: 8),

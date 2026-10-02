@@ -48,14 +48,12 @@ class EasyHomeRepository {
 
   Stream<String?> watchConnection(String uid) =>
       _link(uid).snapshots().map((s) => s.data()?['homeId'] as String?);
-  Stream<HomeModel?> watchHome(String id) =>
-      _home(id)
-          .snapshots()
-          .map((s) => s.exists ? HomeModel.fromMap(_data(s)) : null);
-  Stream<bool> watchCached(String id) =>
-      _home(id)
-          .snapshots(includeMetadataChanges: true)
-          .map((s) => s.metadata.isFromCache);
+  Stream<HomeModel?> watchHome(String id) => _home(
+    id,
+  ).snapshots().map((s) => s.exists ? HomeModel.fromMap(_data(s)) : null);
+  Stream<bool> watchCached(String id) => _home(
+    id,
+  ).snapshots(includeMetadataChanges: true).map((s) => s.metadata.isFromCache);
   Stream<UserModel?> watchMember(String id, String uid) =>
       _collection(id, 'members')
           .doc(uid)
@@ -490,31 +488,57 @@ class EasyHomeRepository {
       throw ArgumentError('সঠিক পরিমাণ ও সংশোধনের কারণ দিন।');
     final ref = _collection(id, 'rents').doc(rent.id);
     final receipt = ref.collection('payments').doc(paymentId);
-    await _db.runTransaction((tx) async {
-      final previous = await tx.get(receipt);
-      if (previous.exists)
-        return; // Same submission retried after response loss.
-      final snapshot = await tx.get(ref);
-      final latest = RentModel.fromMap(_data(snapshot));
-      final paid = paymentBalance(
-        amount: latest.amountPaisa,
-        paid: latest.paidPaisa,
-        change: amountPaisa,
-      );
-      tx.set(receipt, {
-        'amountPaisa': amountPaisa,
-        'balancePaisa': paid,
-        'method': method,
-        'note': note.trim(),
-        'recordedBy': _uid,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-      tx.update(ref, {
-        'paidPaisa': paid,
-        'lastPaymentId': paymentId,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    });
+    // Some Firestore backends evaluate ledger rules before reporting a
+    // transaction conflict. Retry only after a server read proves the balance
+    // changed, with the same receipt ID so response loss cannot double-charge.
+    for (var attempt = 0; ; attempt++) {
+      int? observedPaid;
+      try {
+        await _db.runTransaction((tx) async {
+          final previous = await tx.get(receipt);
+          if (previous.exists) {
+            final saved = previous.data()!;
+            if (saved['amountPaisa'] != amountPaisa ||
+                saved['method'] != method ||
+                saved['note'] != note.trim()) {
+              throw StateError(
+                'আগের জমাটি সেভ হয়েছে। রসিদ দেখুন; নতুন জমার জন্য ফর্ম আবার খুলুন।',
+              );
+            }
+            return;
+          }
+          final snapshot = await tx.get(ref);
+          final latest = RentModel.fromMap(_data(snapshot));
+          observedPaid = latest.paidPaisa;
+          final paid = paymentBalance(
+            amount: latest.amountPaisa,
+            paid: latest.paidPaisa,
+            change: amountPaisa,
+          );
+          tx.set(receipt, {
+            'amountPaisa': amountPaisa,
+            'balancePaisa': paid,
+            'method': method,
+            'note': note.trim(),
+            'recordedBy': _uid,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+          tx.update(ref, {
+            'paidPaisa': paid,
+            'lastPaymentId': paymentId,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        });
+        return;
+      } on FirebaseException catch (error) {
+        if (error.code != 'permission-denied' ||
+            attempt >= 2 ||
+            observedPaid == null)
+          rethrow;
+        final current = await ref.get(const GetOptions(source: Source.server));
+        if (current.data()?['paidPaisa'] == observedPaid) rethrow;
+      }
+    }
   }
 
   Future<void> postNotice(

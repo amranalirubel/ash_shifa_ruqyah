@@ -94,6 +94,18 @@ class FakeEasyHomeRepository extends Fake implements EasyHomeRepository {
   @override
   Stream<List<HomeRequest>> watchRequests(String id) => replay('requests', []);
   @override
+  Stream<List<RentPayment>> watchPayments(String id, String rentId) =>
+      replay('payments', [
+        RentPayment(
+          id: 'secret-receipt',
+          amountPaisa: 100000,
+          balancePaisa: 100000,
+          note: 'ব্যক্তিগত জমা',
+          method: 'cash',
+          createdAt: DateTime(2026, 10, 2),
+        ),
+      ]);
+  @override
   Future<void> generateRents(
     String id,
     List<TenantModel> tenants,
