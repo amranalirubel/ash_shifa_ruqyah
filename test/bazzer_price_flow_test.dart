@@ -4,7 +4,7 @@ import 'package:ash_shifa_ruqyah/features/bazzer_reminder/models/bazzer_item_mod
 import 'package:ash_shifa_ruqyah/features/bazzer_reminder/screens/bazzer_reminder_page.dart';
 import 'package:ash_shifa_ruqyah/features/bazzer_reminder/services/voice_service.dart';
 import 'package:ash_shifa_ruqyah/features/bazzer_reminder/widgets/bazzer_daily_list.dart';
-import 'package:ash_shifa_ruqyah/features/bazzer_reminder/widgets/bazzer_item_tile.dart';
+import 'package:ash_shifa_ruqyah/features/bazzer_reminder/widgets/bazzer_price_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -76,6 +76,17 @@ Future<void> reveal(WidgetTester tester, Finder target) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> selectPrice(
+  WidgetTester tester,
+  String id, {
+  bool secure = false,
+}) async {
+  final row = find.byKey(ValueKey('select-price-$secure-$id'));
+  await reveal(tester, row);
+  await tester.tap(row);
+  await tester.pumpAndSettle();
+}
+
 String textAt(WidgetTester tester, String key) =>
     tester.widget<Text>(find.byKey(ValueKey(key))).data!;
 
@@ -90,8 +101,8 @@ void main() {
       ]);
       repository.priceGate = Completer<void>();
       await openPrices(tester, repository);
-      final fifty = find.byKey(const ValueKey('price-false-a-50'));
-      await reveal(tester, fifty);
+      await selectPrice(tester, 'a');
+      final fifty = find.byKey(const ValueKey('price-preset-50'));
       await tester.tap(fifty);
       await tester.pumpAndSettle();
       expect(
@@ -108,8 +119,7 @@ void main() {
       await tester.pumpAndSettle();
       repository.priceGate = null;
       repository.failPrice = true;
-      final twenty = find.byKey(const ValueKey('price-false-a-20'));
-      await reveal(tester, twenty);
+      final twenty = find.byKey(const ValueKey('price-preset-20'));
       await tester.tap(twenty);
       await tester.pumpAndSettle();
       expect(textAt(tester, 'item-price-false-a'), '৳ ৫০');
@@ -122,11 +132,8 @@ void main() {
     final repository = FakeBazzerRepository();
     repository.items.add(product('a', 'রসুন'));
     await openPrices(tester, repository);
-    final custom = find.descendant(
-      of: find.byType(BazzerItemTile).first,
-      matching: find.byKey(const ValueKey('custom-price-false-a')),
-    );
-    await reveal(tester, custom);
+    await selectPrice(tester, 'a');
+    final custom = find.byKey(const ValueKey('price-panel-custom'));
     await tester.tap(custom);
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -213,6 +220,16 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
+            bottomNavigationBar: BazzerPricePanel(
+              item: product('a', 'দেশি রসুন', price: 100000000),
+              hasEditableItems: true,
+              voiceLabel: 'বাংলায় বলুন',
+              listening: false,
+              onVoice: () {},
+              onPriceSelected: (_) {},
+              onAddFive: () {},
+              onCustomPrice: () {},
+            ),
             body: BazzerDailyList(
               items: [product('a', 'দেশি রসুন', price: 100000000)],
               bought: false,
@@ -222,16 +239,14 @@ void main() {
               onEdit: (_) {},
               onDelete: (_) {},
               onToggle: (_) {},
-              onSetPrice: (_, _) {},
-              onAddFive: (_) {},
-              onCustomPrice: (_) {},
+              onSelectPrice: (_) {},
             ),
           ),
         ),
       );
       await tester.pumpAndSettle();
       for (final price in [10, 20, 30, 40, 50, 100, 200]) {
-        expect(find.byKey(ValueKey('price-false-a-$price')), findsOneWidget);
+        expect(find.byKey(ValueKey('price-preset-$price')), findsOneWidget);
       }
       await reveal(
         tester,

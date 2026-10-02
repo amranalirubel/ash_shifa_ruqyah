@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../models/bazzer_item_model.dart';
 import '../utils/bazzer_format.dart';
@@ -13,9 +12,8 @@ class BazzerItemTile extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     required this.canSetPrice,
-    required this.onPriceSelected,
-    required this.onAddFive,
-    required this.onCustomPrice,
+    required this.onSelect,
+    required this.selected,
   });
   final BazzerItem item;
   final VoidCallback onToggle;
@@ -24,10 +22,8 @@ class BazzerItemTile extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final bool canSetPrice;
-  final ValueChanged<int> onPriceSelected;
-  final VoidCallback onAddFive;
-  final VoidCallback onCustomPrice;
-  String get _key => '${item.isSecure}-${item.id}';
+  final VoidCallback onSelect;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
@@ -35,17 +31,25 @@ class BazzerItemTile extends StatelessWidget {
     final quantity = item.quantity % 1 == 0
         ? item.quantity.toInt().toString()
         : item.quantity.toString();
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(bottom: BorderSide(color: colors.outlineVariant)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
+    return Semantics(
+      selected: selected,
+      child: Material(
+        color: selected ? colors.primaryContainer : colors.surface,
+        child: InkWell(
+          key: ValueKey('select-price-${item.isSecure}-${item.id}'),
+          onTap: canSetPrice ? onSelect : null,
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border(
+                left: BorderSide(
+                  width: 3,
+                  color: selected ? colors.primary : Colors.transparent,
+                ),
+                bottom: BorderSide(color: colors.outlineVariant),
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            child: Row(
               children: [
                 SizedBox(
                   width: 36,
@@ -63,7 +67,7 @@ class BazzerItemTile extends StatelessWidget {
                     children: [
                       Text(
                         item.name,
-                        maxLines: 2,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
@@ -74,7 +78,8 @@ class BazzerItemTile extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        '${banglaNumber(quantity)} ${item.unit} • ${item.addedBy}${item.isSecure ? ' • Secure' : ''}'
+                        '${banglaNumber(quantity)} ${item.unit} • ${item.addedBy}'
+                        '${item.isSecure ? ' • Secure' : ''}'
                         '${item.hasPendingWrites ? ' • পাঠানোর অপেক্ষায়' : ''}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -86,23 +91,25 @@ class BazzerItemTile extends StatelessWidget {
                     ],
                   ),
                 ),
+                const SizedBox(width: 6),
                 Flexible(
-                  child: TextButton(
-                    key: ValueKey('custom-price-$_key'),
-                    onPressed: canSetPrice ? onCustomPrice : null,
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                      minimumSize: const Size(36, 44),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 10,
                     ),
                     child: Text(
                       item.pricePaisa == null
-                          ? 'দাম দিন'
+                          ? canSetPrice
+                                ? 'দাম দিন'
+                                : '—'
                           : bazzerMoney(item.pricePaisa!),
-                      key: ValueKey('item-price-$_key'),
+                      key: ValueKey('item-price-${item.isSecure}-${item.id}'),
                       textAlign: TextAlign.end,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 13,
+                        color: canSetPrice ? colors.primary : colors.onSurface,
                       ),
                     ),
                   ),
@@ -128,97 +135,8 @@ class BazzerItemTile extends StatelessWidget {
                   ),
               ],
             ),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final scale = math.max(
-                  1.0,
-                  MediaQuery.textScalerOf(context).scale(12) / 12,
-                );
-                // Normal phones show every control; large text keeps one scrollable row.
-                final width = math.max(constraints.maxWidth, 316 * scale);
-                return SingleChildScrollView(
-                  key: ValueKey('price-row-$_key'),
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    width: width,
-                    child: Row(
-                      children: [
-                        for (final price in bazzerPricePresets)
-                          Expanded(
-                            child: _priceButton(
-                              context,
-                              key: 'price-$_key-$price',
-                              label: banglaNumber(price),
-                              selected: item.pricePaisa == price * 100,
-                              onPressed: canSetPrice
-                                  ? () => onPriceSelected(price * 100)
-                                  : null,
-                            ),
-                          ),
-                        SizedBox(
-                          width: 38 * scale,
-                          child: _priceButton(
-                            context,
-                            key: 'plus-five-$_key',
-                            label: '+৫',
-                            selected: false,
-                            onPressed:
-                                canSetPrice &&
-                                    (item.pricePaisa ?? 0) <=
-                                        bazzerMaxPricePaisa - 500
-                                ? onAddFive
-                                : null,
-                          ),
-                        ),
-                        SizedBox(
-                          width: 42 * scale,
-                          child: _priceButton(
-                            context,
-                            key: 'reset-price-$_key',
-                            label: 'Reset',
-                            selected: false,
-                            onPressed: canSetPrice
-                                ? () => onPriceSelected(0)
-                                : null,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
+          ),
         ),
-      ),
-    );
-  }
-
-  Widget _priceButton(
-    BuildContext context, {
-    required String key,
-    required String label,
-    required bool selected,
-    required VoidCallback? onPressed,
-  }) {
-    final colors = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 1),
-      child: TextButton(
-        key: ValueKey(key),
-        onPressed: onPressed,
-        style: TextButton.styleFrom(
-          padding: EdgeInsets.zero,
-          minimumSize: const Size(0, 40),
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          backgroundColor: selected
-              ? colors.primary
-              : colors.surfaceContainerHighest,
-          foregroundColor: selected ? colors.onPrimary : colors.onSurface,
-          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
-        ),
-        child: Text(label),
       ),
     );
   }

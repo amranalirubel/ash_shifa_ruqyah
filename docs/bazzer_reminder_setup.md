@@ -87,12 +87,27 @@ seeding is needed. `createdAt` remains a server timestamp for auditing.
 Bangladesh calendar dates (UTC+06) define a family note. Offline items retain
 their original note date and ordering when a later server timestamp arrives.
 
-Each compact item row offers Tk 10/20/30/40/50/100/200, +5 and Reset in one
-horizontal line. They fit a standard 360px phone; with larger accessibility text
-or a narrower viewport the same line scrolls horizontally instead of wrapping.
-+5 adds Tk 5 to the latest displayed amount (20 then +5 is 25), including rapid
-taps while writes are pending. Reset sets an explicit zero. Tap the item's
-amount to enter a custom price, including paisa, or clear an unset price.
+One shared price panel is fixed below the shopping list, outside both tabs.
+Tap an editable item's name or amount to select it. The row is highlighted and
+the panel identifies the product, quantity, date and current amount. Its single
+Tk 10/20/30/40/50/100/200, +5 and Reset row changes only that item. No item is
+selected automatically; the controls stay disabled until an eligible item is
+selected. Tap another row to move selection or the close icon to clear it.
+The controls fit a standard 360px phone; larger accessibility text or a narrower
+viewport scrolls the same line horizontally. +5 adds Tk 5 to the latest displayed
+amount (20 then +5 is 25), including rapid taps while writes are pending.
+Reset sets an explicit zero. Tap the panel's amount to enter a custom price,
+including paisa, or clear a price. Rows show only the product, quantity and amount.
+
+The shared panel also holds the Bengali voice button. It stays visible while
+scrolling and reserves its own space, so it cannot cover the day's Save button.
+It hides while the keyboard is open. Search, shop and bought/pending tab changes
+clear selection. Deleted, newly hidden or no-longer-editable items are discarded,
+including when an open custom-price dialog returns. Live permission changes
+cannot leave another member's private item selected. This panel-only change
+requires no additional Firestore rule or data migration beyond the daily/monthly
+expense version below.
+
 This is the total price for that item's whole quantity, not a per-kg rate.
 Tapping a preset replaces the price; repeated taps do not add it again. Authors
 and Admins may set or clear prices; unrelated members cannot edit them.

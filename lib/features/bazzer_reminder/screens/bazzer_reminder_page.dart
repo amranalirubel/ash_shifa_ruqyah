@@ -12,6 +12,7 @@ import '../utils/store_category.dart';
 import '../utils/voice_parser.dart';
 import '../utils/bazzer_receipt.dart';
 import '../widgets/bazzer_daily_list.dart';
+import '../widgets/bazzer_price_panel.dart';
 import 'bazzer_family_page.dart';
 import 'bazzer_edit_item_dialog.dart';
 import 'voice_review_sheet.dart';
@@ -43,6 +44,8 @@ class _BazzerReminderPageState extends State<BazzerReminderPage>
   late final _tabs = TabController(length: 2, vsync: this);
   final _priceEdits = <String, (int?, int)>{};
   int _priceRevision = 0;
+  String? _selectedPriceItemKey;
+  int _priceTabIndex = 0;
   final _savingDays = <String>{};
   final _savedDays = <String, String>{};
   bool _secureNewItem = false;
@@ -89,11 +92,26 @@ class _BazzerReminderPageState extends State<BazzerReminderPage>
   );
 
   @override
+  void initState() {
+    super.initState();
+    _tabs.addListener(_priceTabChanged);
+  }
+
+  void _priceTabChanged() {
+    if (_tabs.index == _priceTabIndex) return;
+    setState(() {
+      _priceTabIndex = _tabs.index;
+      _selectedPriceItemKey = null;
+    });
+  }
+
+  @override
   void dispose() {
     unawaited(_voice.dispose());
     _nameController.dispose();
     _quantityController.dispose();
     _searchController.dispose();
+    _tabs.removeListener(_priceTabChanged);
     _tabs.dispose();
     super.dispose();
   }
@@ -174,6 +192,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage>
     setState(() {
       _voiceStarting = true;
       _heard = '';
+      _selectedPriceItemKey = null;
     });
     try {
       await _voice.startListening(
@@ -244,6 +263,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage>
     setState(() {
       _search = '';
       _filterStore = null;
+      _selectedPriceItemKey = null;
     });
     _tabs.animateTo(0);
   }
@@ -255,6 +275,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage>
     builder: (context, userSnapshot) {
       final user = userSnapshot.data;
       if (user == null) {
+        _selectedPriceItemKey = null;
         return Scaffold(
           appBar: AppBar(title: const Text('বাজার তালিকা')),
           body: Center(
@@ -274,6 +295,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage>
         stream: _linkStream(user.uid),
         builder: (context, linkSnapshot) {
           if (linkSnapshot.hasError) {
+            _selectedPriceItemKey = null;
             return Scaffold(
               appBar: AppBar(title: const Text('বাজার তালিকা')),
               body: const Center(
@@ -284,6 +306,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage>
             );
           }
           if (linkSnapshot.connectionState == ConnectionState.waiting) {
+            _selectedPriceItemKey = null;
             return Scaffold(
               appBar: AppBar(title: const Text('বাজার তালিকা')),
               body: const Center(child: CircularProgressIndicator()),
@@ -291,6 +314,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage>
           }
           final familyId = linkSnapshot.data;
           if (familyId == null || familyId.isEmpty) {
+            _selectedPriceItemKey = null;
             return Scaffold(
               appBar: AppBar(title: const Text('বাজার তালিকা')),
               body: BazzerFamilySetup(repository: _repository),
@@ -300,6 +324,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage>
             stream: _familyStream(familyId),
             builder: (context, familySnapshot) {
               if (familySnapshot.hasError) {
+                _selectedPriceItemKey = null;
                 return Scaffold(
                   appBar: AppBar(title: const Text('বাজার তালিকা')),
                   body: const Center(
@@ -316,6 +341,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage>
               }
               final family = familySnapshot.data;
               if (family == null) {
+                _selectedPriceItemKey = null;
                 return const Scaffold(
                   body: Center(child: Text('পরিবারটি পাওয়া যায়নি।')),
                 );
@@ -343,6 +369,7 @@ class _BazzerReminderPageState extends State<BazzerReminderPage>
                   }
                   if (memberSnapshot.hasError ||
                       memberSnapshot.data?.active != true) {
+                    _selectedPriceItemKey = null;
                     return Scaffold(
                       appBar: AppBar(title: const Text('বাজার তালিকা')),
                       body: const Center(
@@ -388,7 +415,79 @@ class _BazzerReminderPageState extends State<BazzerReminderPage>
     );
   }
 
-  Widget _shoppingScreen(BazzerFamily family, BazzerMember member) {
+  Widget _shoppingScreen(BazzerFamily family, BazzerMember member) =>
+      StreamBuilder<List<BazzerItem>>(
+        key: ValueKey('${family.id}/${member.uid}'),
+        stream: _itemsStream(family.id),
+        builder: (context, snapshot) => StreamBuilder<List<BazzerItem>>(
+          key: ValueKey('${member.uid}/${member.isAdmin}'),
+          stream: _itemsStream(
+            family.id,
+            secure: true,
+            authorUid: member.isAdmin ? null : member.uid,
+          ),
+          builder: (context, secureSnapshot) {
+            final error = snapshot.hasError
+                ? 'তালিকা পড়া যায়নি। আবার চেষ্টা করুন।'
+                : secureSnapshot.hasError
+                ? 'Secure তালিকা পড়া যায়নি। Admin-এর সঙ্গে যোগাযোগ করুন।'
+                : null;
+            final loading =
+                snapshot.connectionState == ConnectionState.waiting ||
+                secureSnapshot.connectionState == ConnectionState.waiting;
+            // The list and the single price panel use the same permitted,
+            // optimistic snapshot. Never retain a selected document object.
+            final items = loading || error != null
+                ? <BazzerItem>[]
+                : [...?snapshot.data, ...?secureSnapshot.data].map((item) {
+                    final edit =
+                        _priceEdits[_priceKey(family.id, member, item)];
+                    return edit == null
+                        ? item
+                        : item.copyWith(
+                            pricePaisa: edit.$1,
+                            clearPrice: edit.$1 == null,
+                            hasPendingWrites: true,
+                          );
+                  }).toList();
+            return _shoppingFrame(
+              family,
+              member,
+              items,
+              loading: loading,
+              error: error,
+            );
+          },
+        ),
+      );
+
+  Widget _shoppingFrame(
+    BazzerFamily family,
+    BazzerMember member,
+    List<BazzerItem> items, {
+    required bool loading,
+    String? error,
+  }) {
+    final eligible = items.where(
+      (item) =>
+          (member.isAdmin || item.createdBy == member.uid) &&
+          item.isBought == (_tabs.index == 1) &&
+          (_tabs.index == 1 ||
+              _filterStore == null ||
+              item.category == _filterStore) &&
+          item.name.toLowerCase().contains(_search.toLowerCase()),
+    );
+    BazzerItem? selected;
+    for (final item in eligible) {
+      if (_selectionKey(family.id, member, item) == _selectedPriceItemKey) {
+        selected = item;
+        break;
+      }
+    }
+    // Reconcile synchronously so deleted, hidden or newly forbidden items
+    // cannot remain actionable in the panel or an open price dialog.
+    if (selected == null) _selectedPriceItemKey = null;
+    final selectedItem = selected;
     final colors = Theme.of(context).colorScheme;
     final admin = member.isAdmin;
     final secure = member.secure || (admin && _secureNewItem);
@@ -427,20 +526,37 @@ class _BazzerReminderPageState extends State<BazzerReminderPage>
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _voiceStarting
-            ? null
-            : () =>
-                  _toggleVoice(family.id, secure: secure, addedBy: member.name),
-        icon: Icon(_isListening ? Icons.stop_rounded : Icons.mic_rounded),
-        label: Text(
-          _voiceStarting
-              ? 'চালু হচ্ছে…'
-              : _isListening
-              ? 'শুনছি—থামুন'
-              : 'বাংলায় বলুন',
-        ),
-      ),
+      bottomNavigationBar: MediaQuery.viewInsetsOf(context).bottom > 0
+          ? null
+          : BazzerPricePanel(
+              item: selectedItem,
+              hasEditableItems: eligible.isNotEmpty,
+              voiceLabel: _voiceStarting
+                  ? 'চালু হচ্ছে…'
+                  : _isListening
+                  ? 'শুনছি—থামুন'
+                  : 'বাংলায় বলুন',
+              listening: _isListening,
+              onVoice: _voiceStarting
+                  ? null
+                  : () => _toggleVoice(
+                      family.id,
+                      secure: secure,
+                      addedBy: member.name,
+                    ),
+              onPriceSelected: selectedItem == null
+                  ? null
+                  : (price) =>
+                        _setPrice(family.id, member, selectedItem, price),
+              onAddFive: selectedItem == null
+                  ? null
+                  : () => _addFive(family.id, member, selectedItem),
+              onCustomPrice: selectedItem == null
+                  ? null
+                  : () => _customPrice(family.id, member, selectedItem),
+              onClearSelection: () =>
+                  setState(() => _selectedPriceItemKey = null),
+            ),
       body: SafeArea(
         child: NestedScrollView(
           headerSliverBuilder: (context, innerBoxIsScrolled) => [
@@ -493,8 +609,10 @@ class _BazzerReminderPageState extends State<BazzerReminderPage>
                       ),
                     TextField(
                       controller: _searchController,
-                      onChanged: (value) =>
-                          setState(() => _search = value.trim()),
+                      onChanged: (value) => setState(() {
+                        _search = value.trim();
+                        _selectedPriceItemKey = null;
+                      }),
                       decoration: const InputDecoration(
                         prefixIcon: Icon(Icons.search_rounded),
                         hintText: 'বাজারের জিনিস খুঁজুন',
@@ -602,7 +720,16 @@ class _BazzerReminderPageState extends State<BazzerReminderPage>
               ),
             ),
           ],
-          body: _itemsTabs(family.id, member: member),
+          body: error != null
+              ? Center(child: Text(error))
+              : loading
+              ? const Center(child: CircularProgressIndicator())
+              : _itemsTabs(
+                  family.id,
+                  member: member,
+                  items: items,
+                  selected: selectedItem,
+                ),
         ),
       ),
     );
@@ -611,89 +738,57 @@ class _BazzerReminderPageState extends State<BazzerReminderPage>
   Widget _itemsTabs(
     String familyId, {
     required BazzerMember member,
-  }) => StreamBuilder<List<BazzerItem>>(
-    stream: _itemsStream(familyId),
-    builder: (context, snapshot) {
-      if (snapshot.hasError) {
-        return const Center(child: Text('তালিকা পড়া যায়নি। আবার চেষ্টা করুন।'));
-      }
-      // Start both subscriptions together. Both tabs share the same
-      // permitted documents, so the daily total survives bought/undo.
-      return StreamBuilder<List<BazzerItem>>(
-        key: ValueKey('${member.uid}/${member.isAdmin}'),
-        stream: _itemsStream(
-          familyId,
-          secure: true,
-          authorUid: member.isAdmin ? null : member.uid,
-        ),
-        builder: (context, secureSnapshot) {
-          if (secureSnapshot.hasError) {
-            return const Center(
-              child: Text(
-                'Secure তালিকা পড়া যায়নি। Admin-এর সঙ্গে যোগাযোগ করুন।',
-              ),
+    required List<BazzerItem> items,
+    required BazzerItem? selected,
+  }) => TabBarView(
+    controller: _tabs,
+    children: [
+      for (final bought in [false, true])
+        BazzerDailyList(
+          items: items,
+          bought: bought,
+          currentUid: member.uid,
+          isAdmin: member.isAdmin,
+          search: _search,
+          filterStore: bought ? null : _filterStore,
+          filters: bought ? null : _storeFilters(),
+          onEdit: (item) => _editItem(familyId, item),
+          onDelete: (item) => _deleteItem(familyId, item),
+          onToggle: (item) => _queueWrite(
+            _repository.setBought(familyId, item, !item.isBought),
+          ),
+          onSelectPrice: (item) {
+            FocusScope.of(context).unfocus();
+            setState(
+              () =>
+                  _selectedPriceItemKey = _selectionKey(familyId, member, item),
             );
-          }
-          if (snapshot.connectionState == ConnectionState.waiting ||
-              secureSnapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final items = [...?snapshot.data, ...?secureSnapshot.data].map((
-            item,
-          ) {
-            final edit = _priceEdits[_priceKey(familyId, member, item)];
-            return edit == null
-                ? item
-                : item.copyWith(
-                    pricePaisa: edit.$1,
-                    clearPrice: edit.$1 == null,
-                    hasPendingWrites: true,
-                  );
-          }).toList();
-          return TabBarView(
-            controller: _tabs,
-            children: [
-              for (final bought in [false, true])
-                BazzerDailyList(
-                  items: items,
-                  bought: bought,
-                  currentUid: member.uid,
-                  isAdmin: member.isAdmin,
-                  search: _search,
-                  filterStore: bought ? null : _filterStore,
-                  filters: bought ? null : _storeFilters(),
-                  onEdit: (item) => _editItem(familyId, item),
-                  onDelete: (item) => _deleteItem(familyId, item),
-                  onToggle: (item) => _queueWrite(
-                    _repository.setBought(familyId, item, !item.isBought),
-                  ),
-                  onSetPrice: (item, price) =>
-                      _setPrice(familyId, member, item, price),
-                  onAddFive: (item) => _addFive(familyId, member, item),
-                  onSave: (note) => _saveDay(familyId, member, note),
-                  savingDays: {
-                    for (final item in items)
-                      if (_savingDays.contains(
-                        '$familyId/${member.uid}/${item.dayKey}',
-                      ))
-                        item.dayKey,
-                  },
-                  savedSignatures: {
-                    for (final item in items)
-                      if (_savedDays.containsKey(
-                        '$familyId/${member.uid}/${item.dayKey}',
-                      ))
-                        item.dayKey:
-                            _savedDays['$familyId/${member.uid}/${item.dayKey}']!,
-                  },
-                  onCustomPrice: (item) => _customPrice(familyId, member, item),
-                ),
-            ],
-          );
-        },
-      );
-    },
+          },
+          selectedPriceKey: selected == null
+              ? null
+              : '${selected.isSecure}/${selected.id}',
+          onSave: (note) => _saveDay(familyId, member, note),
+          savingDays: {
+            for (final item in items)
+              if (_savingDays.contains(
+                '$familyId/${member.uid}/${item.dayKey}',
+              ))
+                item.dayKey,
+          },
+          savedSignatures: {
+            for (final item in items)
+              if (_savedDays.containsKey(
+                '$familyId/${member.uid}/${item.dayKey}',
+              ))
+                item.dayKey:
+                    _savedDays['$familyId/${member.uid}/${item.dayKey}']!,
+          },
+        ),
+    ],
   );
+
+  String _selectionKey(String familyId, BazzerMember member, BazzerItem item) =>
+      '$familyId/${member.uid}/${member.isAdmin}/${item.isSecure}/${item.id}';
 
   String _priceKey(String familyId, BazzerMember member, BazzerItem item) =>
       '$familyId/${member.uid}/${item.isSecure}/${item.id}';
@@ -768,11 +863,17 @@ class _BazzerReminderPageState extends State<BazzerReminderPage>
     BazzerMember member,
     BazzerItem item,
   ) async {
+    final selection = _selectedPriceItemKey;
     final result = await showDialog<BazzerPriceEdit>(
       context: context,
       builder: (_) => BazzerPriceDialog(item: item),
     );
-    if (!mounted || result == null) return;
+    if (!mounted ||
+        result == null ||
+        selection == null ||
+        selection != _selectedPriceItemKey) {
+      return;
+    }
     _setPrice(familyId, member, item, result.paisa);
   }
 
@@ -824,14 +925,20 @@ class _BazzerReminderPageState extends State<BazzerReminderPage>
         ChoiceChip(
           label: const Text('সব দোকান'),
           selected: _filterStore == null,
-          onSelected: (_) => setState(() => _filterStore = null),
+          onSelected: (_) => setState(() {
+            _filterStore = null;
+            _selectedPriceItemKey = null;
+          }),
         ),
         const SizedBox(width: 6),
         for (final category in StoreCategory.all) ...[
           ChoiceChip(
             label: Text(category),
             selected: _filterStore == category,
-            onSelected: (_) => setState(() => _filterStore = category),
+            onSelected: (_) => setState(() {
+              _filterStore = category;
+              _selectedPriceItemKey = null;
+            }),
           ),
           const SizedBox(width: 6),
         ],

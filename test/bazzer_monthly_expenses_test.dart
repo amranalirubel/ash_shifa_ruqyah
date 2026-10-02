@@ -6,7 +6,8 @@ import 'package:ash_shifa_ruqyah/features/bazzer_reminder/utils/bazzer_receipt.d
 import 'package:ash_shifa_ruqyah/features/bazzer_reminder/widgets/bazzer_item_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'bazzer_price_flow_test.dart' show product, openPrices, reveal, textAt;
+import 'bazzer_price_flow_test.dart'
+    show product, openPrices, reveal, selectPrice, textAt;
 import 'support/fake_bazzer.dart';
 
 void main() {
@@ -59,12 +60,12 @@ void main() {
     await openPrices(tester, repo);
     tester.view.physicalSize = const Size(360, 1100);
     await tester.pumpAndSettle();
-    final plus = find.byKey(const ValueKey('plus-five-false-a'));
-    final reset = find.byKey(const ValueKey('reset-price-false-a'));
-    await reveal(tester, plus);
+    await selectPrice(tester, 'a');
+    final plus = find.byKey(const ValueKey('price-plus-five'));
+    final reset = find.byKey(const ValueKey('price-reset'));
     final controls = [
       for (final price in [10, 20, 30, 40, 50, 100, 200])
-        find.byKey(ValueKey('price-false-a-$price')),
+        find.byKey(ValueKey('price-preset-$price')),
       plus,
       reset,
     ];
@@ -73,7 +74,7 @@ void main() {
       expect(tester.getCenter(control).dy, closeTo(y, 0.1));
       expect(control.hitTestable(), findsOneWidget);
     }
-    expect(tester.getSize(find.byType(BazzerItemTile)).height, lessThan(130));
+    expect(tester.getSize(find.byType(BazzerItemTile)).height, lessThan(80));
     repo.priceGate = Completer<void>();
     await tester.tap(plus);
     await tester.tap(plus); // Both taps before a rebuild must accumulate.
@@ -90,7 +91,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(repo.items.single.pricePaisa, 0);
     expect(textAt(tester, 'item-price-false-a'), '৳ ০');
-    await tester.tap(find.byKey(const ValueKey('price-false-a-40')));
+    await tester.tap(find.byKey(const ValueKey('price-preset-40')));
     await tester.pumpAndSettle();
     await tester.tap(plus);
     await tester.pumpAndSettle();
@@ -125,8 +126,8 @@ void main() {
       await tester.pumpAndSettle();
       repo.expenseGate = null;
       expect(find.text('Saved'), findsOneWidget);
-      final plus = find.byKey(const ValueKey('plus-five-true-c'));
-      await reveal(tester, plus);
+      await selectPrice(tester, 'c', secure: true);
+      final plus = find.byKey(const ValueKey('price-plus-five'));
       await tester.tap(plus);
       await tester.pumpAndSettle();
       expect(

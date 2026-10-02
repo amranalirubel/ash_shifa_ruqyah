@@ -17,9 +17,8 @@ class BazzerDailyList extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onToggle,
-    required this.onSetPrice,
-    required this.onAddFive,
-    required this.onCustomPrice,
+    required this.onSelectPrice,
+    this.selectedPriceKey,
     this.onSave,
     this.savingDays = const {},
     this.savedSignatures = const {},
@@ -34,9 +33,8 @@ class BazzerDailyList extends StatelessWidget {
   final ValueChanged<BazzerItem> onEdit;
   final ValueChanged<BazzerItem> onDelete;
   final ValueChanged<BazzerItem> onToggle;
-  final void Function(BazzerItem, int) onSetPrice;
-  final ValueChanged<BazzerItem> onAddFive;
-  final ValueChanged<BazzerItem> onCustomPrice;
+  final ValueChanged<BazzerItem> onSelectPrice;
+  final String? selectedPriceKey;
   final ValueChanged<BazzerDailyNote>? onSave;
   final Set<String> savingDays;
   final Map<String, String> savedSignatures;
@@ -57,7 +55,7 @@ class BazzerDailyList extends StatelessWidget {
     }
     return ListView(
       key: PageStorageKey('bazzer-daily-$bought'),
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 110),
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
       children: [
         ?filters,
         if (visible.isEmpty)
@@ -233,9 +231,8 @@ class BazzerDailyList extends StatelessWidget {
       onEdit: () => onEdit(item),
       onDelete: () => onDelete(item),
       onToggle: () => onToggle(item),
-      onPriceSelected: (price) => onSetPrice(item, price),
-      onAddFive: () => onAddFive(item),
-      onCustomPrice: () => onCustomPrice(item),
+      onSelect: () => onSelectPrice(item),
+      selected: selectedPriceKey == '${item.isSecure}/${item.id}',
     ),
   );
 }
