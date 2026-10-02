@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/bazzer_item_model.dart';
+import '../models/bazzer_expense.dart';
 import '../utils/bazzer_receipt.dart';
 import '../utils/store_category.dart';
 
@@ -401,6 +402,52 @@ class BazzerRepository {
       throw const FormatException('সঠিক দাম লিখুন।');
     }
     await _item(familyId, item).update({'pricePaisa': paisa});
+  }
+
+  Stream<List<BazzerExpense>> watchExpenses(
+    String familyId,
+    String month, {
+    required bool includeSecure,
+  }) {
+    if (!validBazzerDayKey('$month-01')) {
+      throw const FormatException('সঠিক মাস বেছে নিন।');
+    }
+    final start = DateTime.parse('$month-01');
+    final end = DateTime(
+      start.year,
+      start.month + 1,
+    ).toIso8601String().substring(0, 10);
+    return _family(familyId)
+        .collection(includeSecure ? 'admin_expenses' : 'expenses')
+        .where('day', isGreaterThanOrEqualTo: '$month-01')
+        .where('day', isLessThan: end)
+        .orderBy('day', descending: true)
+        .snapshots(includeMetadataChanges: true)
+        .map(
+          (snapshot) => snapshot.docs.map(BazzerExpense.fromDocument).toList(),
+        );
+  }
+
+  Future<void> saveExpense(String familyId, BazzerExpenseDraft draft) async {
+    final batch = _db.batch();
+    Map<String, Object> data(int total, int count) => {
+      'day': draft.day,
+      'totalPaisa': total,
+      'itemCount': count,
+      'savedBy': currentUser.uid,
+      'savedAt': FieldValue.serverTimestamp(),
+    };
+    // Deterministic date IDs prevent duplicate spending on repeated saves.
+    // Normal readers never receive a combined or secure total.
+    batch.set(
+      _family(familyId).collection('expenses').doc(draft.day),
+      data(draft.sharedPaisa, draft.sharedCount),
+    );
+    batch.set(
+      _family(familyId).collection('admin_expenses').doc(draft.day),
+      data(draft.totalPaisa, draft.itemCount),
+    );
+    await batch.commit();
   }
 
   Future<void> editItem(

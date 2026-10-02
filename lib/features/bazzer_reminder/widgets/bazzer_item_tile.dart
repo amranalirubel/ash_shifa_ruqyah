@@ -1,5 +1,5 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
-
 import '../models/bazzer_item_model.dart';
 import '../utils/bazzer_format.dart';
 
@@ -12,22 +12,22 @@ class BazzerItemTile extends StatelessWidget {
     required this.canEdit,
     required this.onEdit,
     required this.onDelete,
-    required this.runningTotalPaisa,
     required this.canSetPrice,
     required this.onPriceSelected,
+    required this.onAddFive,
     required this.onCustomPrice,
   });
-
   final BazzerItem item;
   final VoidCallback onToggle;
   final bool canMarkBought;
   final bool canEdit;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
-  final int runningTotalPaisa;
   final bool canSetPrice;
   final ValueChanged<int> onPriceSelected;
+  final VoidCallback onAddFive;
   final VoidCallback onCustomPrice;
+  String get _key => '${item.isSecure}-${item.id}';
 
   @override
   Widget build(BuildContext context) {
@@ -35,143 +35,190 @@ class BazzerItemTile extends StatelessWidget {
     final quantity = item.quantity % 1 == 0
         ? item.quantity.toInt().toString()
         : item.quantity.toString();
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 5),
-      color: colors.surface,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 3,
-            ),
-            leading: Checkbox(
-              value: item.isBought,
-              onChanged: canMarkBought ? (_) => onToggle() : null,
-              semanticLabel: item.isBought
-                  ? 'আবার তালিকায় রাখুন'
-                  : 'কেনা হয়েছে',
-            ),
-            title: Text(
-              item.name,
-              style: TextStyle(
-                color: colors.onSurface,
-                fontWeight: FontWeight.w700,
-                decoration: item.isBought ? TextDecoration.lineThrough : null,
-              ),
-            ),
-            subtitle: Text(
-              '${banglaNumber(quantity)} ${item.unit} • ${item.addedBy}'
-              '${item.isSecure ? ' • Secure' : ''}'
-              '${item.hasPendingWrites ? ' • পাঠানোর অপেক্ষায়' : ''}',
-              style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
-            ),
-            trailing: canEdit
-                ? PopupMenuButton<String>(
-                    tooltip: 'নিজের আইটেম পরিবর্তন বা মুছুন',
-                    onSelected: (action) {
-                      if (action == 'edit') onEdit();
-                      if (action == 'delete') onDelete();
-                    },
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(
-                        value: 'edit',
-                        child: Text('পরিবর্তন করুন'),
-                      ),
-                      PopupMenuItem(value: 'delete', child: Text('মুছে দিন')),
-                    ],
-                  )
-                : null,
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(bottom: BorderSide(color: colors.outlineVariant)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
               children: [
+                SizedBox(
+                  width: 36,
+                  child: Checkbox(
+                    value: item.isBought,
+                    onChanged: canMarkBought ? (_) => onToggle() : null,
+                    semanticLabel: item.isBought
+                        ? 'আবার তালিকায় রাখুন'
+                        : 'কেনা হয়েছে',
+                  ),
+                ),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        item.pricePaisa == null
-                            ? 'দাম দিন (পুরো পরিমাণের)'
-                            : 'এই আইটেম: ${bazzerMoney(item.pricePaisa!)}',
+                        item.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          decoration: item.isBought
+                              ? TextDecoration.lineThrough
+                              : null,
+                        ),
+                      ),
+                      Text(
+                        '${banglaNumber(quantity)} ${item.unit} • ${item.addedBy}${item.isSecure ? ' • Secure' : ''}'
+                        '${item.hasPendingWrites ? ' • পাঠানোর অপেক্ষায়' : ''}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
                           color: colors.onSurfaceVariant,
                         ),
                       ),
-                      Wrap(
-                        spacing: 4,
-                        children: [
-                          for (final price in bazzerPricePresets)
-                            ChoiceChip(
-                              key: ValueKey(
-                                'price-${item.isSecure}-${item.id}-$price',
-                              ),
-                              label: Text(banglaNumber(price)),
-                              labelStyle: const TextStyle(fontSize: 12),
-                              labelPadding: const EdgeInsets.symmetric(
-                                horizontal: 2,
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                              ),
-                              showCheckmark: false,
-                              selected: item.pricePaisa == price * 100,
-                              onSelected: canSetPrice
-                                  ? (_) => onPriceSelected(price * 100)
-                                  : null,
-                            ),
-                          TextButton(
-                            onPressed: canSetPrice ? onCustomPrice : null,
-                            child: const Text('অন্য দাম'),
-                          ),
-                        ],
-                      ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                Container(
-                  width: 88,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.primaryContainer,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        'এ পর্যন্ত',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: colors.onPrimaryContainer,
-                        ),
+                Flexible(
+                  child: TextButton(
+                    key: ValueKey('custom-price-$_key'),
+                    onPressed: canSetPrice ? onCustomPrice : null,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      minimumSize: const Size(36, 44),
+                    ),
+                    child: Text(
+                      item.pricePaisa == null
+                          ? 'দাম দিন'
+                          : bazzerMoney(item.pricePaisa!),
+                      key: ValueKey('item-price-$_key'),
+                      textAlign: TextAlign.end,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
                       ),
-                      const SizedBox(height: 6),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          bazzerMoney(runningTotalPaisa),
-                          key: ValueKey('running-${item.isSecure}-${item.id}'),
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: colors.onPrimaryContainer,
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
+                if (canEdit)
+                  SizedBox(
+                    width: 32,
+                    child: PopupMenuButton<String>(
+                      padding: EdgeInsets.zero,
+                      tooltip: 'নিজের আইটেম পরিবর্তন বা মুছুন',
+                      onSelected: (action) {
+                        if (action == 'edit') onEdit();
+                        if (action == 'delete') onDelete();
+                      },
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(
+                          value: 'edit',
+                          child: Text('পরিবর্তন করুন'),
+                        ),
+                        PopupMenuItem(value: 'delete', child: Text('মুছে দিন')),
+                      ],
+                    ),
+                  ),
               ],
             ),
-          ),
-        ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final scale = math.max(
+                  1.0,
+                  MediaQuery.textScalerOf(context).scale(12) / 12,
+                );
+                // Normal phones show every control; large text keeps one scrollable row.
+                final width = math.max(constraints.maxWidth, 316 * scale);
+                return SingleChildScrollView(
+                  key: ValueKey('price-row-$_key'),
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: width,
+                    child: Row(
+                      children: [
+                        for (final price in bazzerPricePresets)
+                          Expanded(
+                            child: _priceButton(
+                              context,
+                              key: 'price-$_key-$price',
+                              label: banglaNumber(price),
+                              selected: item.pricePaisa == price * 100,
+                              onPressed: canSetPrice
+                                  ? () => onPriceSelected(price * 100)
+                                  : null,
+                            ),
+                          ),
+                        SizedBox(
+                          width: 38 * scale,
+                          child: _priceButton(
+                            context,
+                            key: 'plus-five-$_key',
+                            label: '+৫',
+                            selected: false,
+                            onPressed:
+                                canSetPrice &&
+                                    (item.pricePaisa ?? 0) <=
+                                        bazzerMaxPricePaisa - 500
+                                ? onAddFive
+                                : null,
+                          ),
+                        ),
+                        SizedBox(
+                          width: 42 * scale,
+                          child: _priceButton(
+                            context,
+                            key: 'reset-price-$_key',
+                            label: 'Reset',
+                            selected: false,
+                            onPressed: canSetPrice
+                                ? () => onPriceSelected(0)
+                                : null,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _priceButton(
+    BuildContext context, {
+    required String key,
+    required String label,
+    required bool selected,
+    required VoidCallback? onPressed,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 1),
+      child: TextButton(
+        key: ValueKey(key),
+        onPressed: onPressed,
+        style: TextButton.styleFrom(
+          padding: EdgeInsets.zero,
+          minimumSize: const Size(0, 40),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          backgroundColor: selected
+              ? colors.primary
+              : colors.surfaceContainerHighest,
+          foregroundColor: selected ? colors.onPrimary : colors.onSurface,
+          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
+        ),
+        child: Text(label),
       ),
     );
   }

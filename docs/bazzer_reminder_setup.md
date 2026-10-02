@@ -87,7 +87,12 @@ seeding is needed. `createdAt` remains a server timestamp for auditing.
 Bangladesh calendar dates (UTC+06) define a family note. Offline items retain
 their original note date and ordering when a later server timestamp arrives.
 
-Each item offers Tk 10/20/30/40/50/100/200 and a custom price, including paisa.
+Each compact item row offers Tk 10/20/30/40/50/100/200, +5 and Reset in one
+horizontal line. They fit a standard 360px phone; with larger accessibility text
+or a narrower viewport the same line scrolls horizontally instead of wrapping.
++5 adds Tk 5 to the latest displayed amount (20 then +5 is 25), including rapid
+taps while writes are pending. Reset sets an explicit zero. Tap the item's
+amount to enter a custom price, including paisa, or clear an unset price.
 This is the total price for that item's whole quantity, not a per-kg rate.
 Tapping a preset replaces the price; repeated taps do not add it again. Authors
 and Admins may set or clear prices; unrelated members cannot edit them.
@@ -95,11 +100,42 @@ An optimistic total is displayed immediately and rejected writes roll back.
 Missing prices are shown separately from zero-price items.
 
 Within each date, items are grouped by shop and sorted oldest first, with a
-stable ID tie-break. Each row shows the cumulative amount of the displayed
-items. A filtered or bought-only view labels its subtotal and separately shows
-the full day's accessible total. Secure items contribute only for users who
-already have permission to read them. Bought/undo does not change a day's
-overall total. Editing a price or deleting an item recomputes later totals.
+stable ID tie-break. Rows show only their own amount. One grand total and Save
+button end each daily note. That total includes the full accessible day across
+shops and bought/pending tabs, even when a search or store filter is active;
+a short scope label explains this. Secure items contribute only for users who
+already have permission to read them. Bought/undo does not change this total.
+
+### Saved monthly expenses
+
+Only active family Admins (including the original owner) finalize the family
+expense snapshot. All items in that day must have a price, including explicit
+zero where appropriate, and pending price/item writes must finish first.
+Save writes two documents atomically, using the date as the document ID:
+
+- `shopping_families/{familyId}/expenses/{yyyy-MM-dd}` contains only normal
+  items' total and count; active members may read it.
+- `shopping_families/{familyId}/admin_expenses/{yyyy-MM-dd}` contains the day's
+  full normal-plus-secure total and count; only active Admins may read it.
+
+Neither document contains product names. Rules validate bounded integer paisa,
+counts, matching document dates, the saving Admin and server timestamps, and
+require the shared/private pair to be saved together. Deploy this version's
+`firestore.rules` before using Save. Existing shopping data needs no migration.
+
+The receipt icon in the shopping AppBar opens **মাসিক খরচ**. The separate page
+shows a month selector, that month's saved total, and each saved date and amount.
+Admin revocation immediately replaces the private history with the normal one;
+removed members lose the page's data. Each month query uses a single indexed
+`day` field, so no composite Firestore index is required.
+
+Saving a day again replaces its prior snapshot rather than adding spending
+again. Editing/resetting/deleting current items does not silently rewrite a saved
+expense: press Save again to finalize the new total. Unsaved days do not appear
+in the monthly amount. The app displays an in-progress save until Firestore
+acknowledges it, reports failures, and allows a retry. Keep an internet connection
+for confirmation. A zero-item shared snapshot is hidden from normal history,
+so a private-only shopping day is not displayed as an empty shared receipt.
 
 Voice parsing now uses quantity/unit endings as product boundaries, including
 unknown multiword products: `রসুন ১ কেজি আদা ১ কেজি` produces two items.

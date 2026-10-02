@@ -98,12 +98,12 @@ void main() {
         repository.items.first.pricePaisa,
         1000,
       ); // Still awaiting the server.
-      expect(textAt(tester, 'running-false-a'), '৳ ৫০');
+      expect(textAt(tester, 'item-price-false-a'), '৳ ৫০');
       await tester.tap(fifty);
       await tester.pumpAndSettle();
       expect(repository.priceWrites, [('a', 5000)]);
-      await reveal(tester, find.byKey(const ValueKey('running-false-b')));
-      expect(textAt(tester, 'running-false-b'), '৳ ৭০');
+      await reveal(tester, find.byKey(const ValueKey('item-price-false-b')));
+      expect(textAt(tester, 'item-price-false-b'), '৳ ২০');
       repository.priceGate!.complete();
       await tester.pumpAndSettle();
       repository.priceGate = null;
@@ -112,7 +112,7 @@ void main() {
       await reveal(tester, twenty);
       await tester.tap(twenty);
       await tester.pumpAndSettle();
-      expect(textAt(tester, 'running-false-a'), '৳ ৫০');
+      expect(textAt(tester, 'item-price-false-a'), '৳ ৫০');
       expect(find.textContaining('দাম রাখা যায়নি।'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
@@ -124,7 +124,7 @@ void main() {
     await openPrices(tester, repository);
     final custom = find.descendant(
       of: find.byType(BazzerItemTile).first,
-      matching: find.text('অন্য দাম'),
+      matching: find.byKey(const ValueKey('custom-price-false-a')),
     );
     await reveal(tester, custom);
     await tester.tap(custom);
@@ -136,49 +136,47 @@ void main() {
     await tester.tap(find.text('দাম রাখুন'));
     await tester.pumpAndSettle();
     expect(repository.priceWrites.last, ('a', 2550));
-    expect(textAt(tester, 'running-false-a'), '৳ ২৫.৫০');
+    expect(textAt(tester, 'item-price-false-a'), '৳ ২৫.৫০');
     await tester.tap(custom);
     await tester.pumpAndSettle();
     await tester.tap(find.text('দাম মুছুন'));
     await tester.pumpAndSettle();
     expect(repository.priceWrites.last, ('a', null));
     expect(repository.items.single.pricePaisa, isNull);
-    expect(textAt(tester, 'running-false-a'), '৳ ০');
+    expect(textAt(tester, 'item-price-false-a'), 'দাম দিন');
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('store filters and bought state keep a separate full-day total', (
-    tester,
-  ) async {
-    final repository = FakeBazzerRepository(owner: true);
-    repository.items.addAll([
-      product('a', 'চাল', price: 1000, category: 'মুদি'),
-      product('b', 'আদা', price: 2000),
-      product('c', 'রসুন', price: 3000, bought: true),
-    ]);
-    await openPrices(tester, repository);
-    await reveal(tester, find.widgetWithText(ChoiceChip, 'সবজি'));
-    await tester.tap(find.widgetWithText(ChoiceChip, 'সবজি'));
-    await tester.pumpAndSettle();
-    await reveal(
-      tester,
-      find.byKey(const ValueKey('day-total-2026-09-24-false')),
-    );
-    expect(textAt(tester, 'total-2026-09-24-false'), '৳ ২০');
-    expect(textAt(tester, 'day-total-2026-09-24-false'), contains('৳ ৬০'));
-    await tester.tap(find.text('কেনা হয়েছে'));
-    await tester.pumpAndSettle();
-    await reveal(
-      tester,
-      find.byKey(const ValueKey('day-total-2026-09-24-true')),
-    );
-    expect(textAt(tester, 'total-2026-09-24-true'), '৳ ৩০');
-    expect(textAt(tester, 'day-total-2026-09-24-true'), contains('৳ ৬০'));
-    await repository.setBought('family', repository.items.last, false);
-    await tester.pumpAndSettle();
-    expect(find.text('এখনো কেনা হয়েছে এমন জিনিস নেই।'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+  testWidgets(
+    'store filters and bought state retain one complete daily total',
+    (tester) async {
+      final repository = FakeBazzerRepository(owner: true);
+      repository.items.addAll([
+        product('a', 'চাল', price: 1000, category: 'মুদি'),
+        product('b', 'আদা', price: 2000),
+        product('c', 'রসুন', price: 3000, bought: true),
+      ]);
+      await openPrices(tester, repository);
+      await reveal(tester, find.widgetWithText(ChoiceChip, 'সবজি'));
+      await tester.tap(find.widgetWithText(ChoiceChip, 'সবজি'));
+      await tester.pumpAndSettle();
+      await reveal(
+        tester,
+        find.byKey(const ValueKey('total-2026-09-24-false')),
+      );
+      expect(textAt(tester, 'total-2026-09-24-false'), '৳ ৬০');
+      expect(find.text('এ পর্যন্ত'), findsNothing);
+      await tester.tap(find.text('কেনা হয়েছে'));
+      await tester.pumpAndSettle();
+      await reveal(tester, find.byKey(const ValueKey('total-2026-09-24-true')));
+      expect(textAt(tester, 'total-2026-09-24-true'), '৳ ৬০');
+      expect(find.text('দেখানো আইটেমের মোট'), findsNothing);
+      await repository.setBought('family', repository.items.last, false);
+      await tester.pumpAndSettle();
+      expect(find.text('এখনো কেনা হয়েছে এমন জিনিস নেই।'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('normal members totals exclude another members secure prices', (
     tester,
@@ -225,6 +223,7 @@ void main() {
               onDelete: (_) {},
               onToggle: (_) {},
               onSetPrice: (_, _) {},
+              onAddFive: (_) {},
               onCustomPrice: (_) {},
             ),
           ),

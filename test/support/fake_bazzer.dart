@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:ash_shifa_ruqyah/features/bazzer_reminder/models/bazzer_item_model.dart';
+import 'package:ash_shifa_ruqyah/features/bazzer_reminder/models/bazzer_expense.dart';
 import 'package:ash_shifa_ruqyah/features/bazzer_reminder/repositories/bazzer_repository.dart';
 import 'package:ash_shifa_ruqyah/features/bazzer_reminder/services/voice_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -82,6 +83,12 @@ class FakeBazzerRepository extends Fake implements BazzerRepository {
   final priceWrites = <(String, int?)>[];
   Completer<void>? priceGate;
   bool failPrice = false;
+  bool failExpense = false;
+  Completer<void>? expenseGate;
+  final expenseWrites = <BazzerExpenseDraft>[];
+  final sharedExpenses = <String, BazzerExpense>{};
+  final adminExpenses = <String, BazzerExpense>{};
+  final _expenseChanges = StreamController<void>.broadcast();
   final _itemChanges = StreamController<List<BazzerItem>>.broadcast();
   final managementWrites = <(String, String, Object)>[];
   final _familyChanges = StreamController<BazzerFamily?>.broadcast();
@@ -141,6 +148,7 @@ class FakeBazzerRepository extends Fake implements BazzerRepository {
       _memberChanges.close(),
       _directoryChanges.close(),
       _itemChanges.close(),
+      _expenseChanges.close(),
     ]);
   }
 
@@ -262,6 +270,42 @@ class FakeBazzerRepository extends Fake implements BazzerRepository {
       ..clear()
       ..addAll(updated);
     _itemChanges.add(List.of(items));
+  }
+
+  @override
+  Stream<List<BazzerExpense>> watchExpenses(
+    String familyId,
+    String month, {
+    required bool includeSecure,
+  }) {
+    List<BazzerExpense> select() =>
+        (includeSecure ? adminExpenses : sharedExpenses).values
+            .where((entry) => entry.day.startsWith('$month-'))
+            .toList()
+          ..sort((a, b) => b.day.compareTo(a.day));
+    return _stream(
+      'expenses/$month/$includeSecure',
+      select,
+      _expenseChanges.stream.map((_) => select()),
+    );
+  }
+
+  @override
+  Future<void> saveExpense(String familyId, BazzerExpenseDraft draft) async {
+    expenseWrites.add(draft);
+    if (expenseGate != null) await expenseGate!.future;
+    if (failExpense) throw StateError('expense write rejected');
+    sharedExpenses[draft.day] = BazzerExpense(
+      day: draft.day,
+      totalPaisa: draft.sharedPaisa,
+      itemCount: draft.sharedCount,
+    );
+    adminExpenses[draft.day] = BazzerExpense(
+      day: draft.day,
+      totalPaisa: draft.totalPaisa,
+      itemCount: draft.itemCount,
+    );
+    _expenseChanges.add(null);
   }
 
   @override

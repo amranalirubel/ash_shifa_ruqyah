@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/bazzer_item_model.dart';
+import '../models/bazzer_expense.dart';
 import '../repositories/bazzer_repository.dart';
 import '../services/voice_service.dart';
 import '../utils/store_category.dart';
@@ -15,6 +16,7 @@ import 'bazzer_family_page.dart';
 import 'bazzer_edit_item_dialog.dart';
 import 'voice_review_sheet.dart';
 import 'bazzer_price_dialog.dart';
+import 'bazzer_monthly_expenses_page.dart';
 
 class BazzerReminderPage extends StatefulWidget {
   const BazzerReminderPage({super.key, this.repository, this.voice});
@@ -41,6 +43,8 @@ class _BazzerReminderPageState extends State<BazzerReminderPage>
   late final _tabs = TabController(length: 2, vsync: this);
   final _priceEdits = <String, (int?, int)>{};
   int _priceRevision = 0;
+  final _savingDays = <String>{};
+  final _savedDays = <String, String>{};
   bool _secureNewItem = false;
   String _unit = 'টা';
   String? _manualStore;
@@ -393,6 +397,23 @@ class _BazzerReminderPageState extends State<BazzerReminderPage>
         title: const Text('পরিবারের বাজার'),
         actions: [
           IconButton(
+            tooltip: 'মাসিক খরচ',
+            onPressed: () {
+              FocusScope.of(context).unfocus();
+              unawaited(_voice.dispose());
+              setState(() => _isListening = false);
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => BazzerMonthlyExpensesPage(
+                    repository: _repository,
+                    familyId: family.id,
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.receipt_long_outlined),
+          ),
+          IconButton(
             tooltip: admin ? 'পরিবারের সদস্য ও কোড' : 'পরিবারের কোড ও তথ্য',
             onPressed: () => _openFamily(family, member),
             icon: const Icon(Icons.manage_accounts_rounded),
@@ -587,79 +608,129 @@ class _BazzerReminderPageState extends State<BazzerReminderPage>
     );
   }
 
-  Widget _itemsTabs(String familyId, {required BazzerMember member}) =>
-      StreamBuilder<List<BazzerItem>>(
-        stream: _itemsStream(familyId),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
+  Widget _itemsTabs(
+    String familyId, {
+    required BazzerMember member,
+  }) => StreamBuilder<List<BazzerItem>>(
+    stream: _itemsStream(familyId),
+    builder: (context, snapshot) {
+      if (snapshot.hasError) {
+        return const Center(child: Text('তালিকা পড়া যায়নি। আবার চেষ্টা করুন।'));
+      }
+      // Start both subscriptions together. Both tabs share the same
+      // permitted documents, so the daily total survives bought/undo.
+      return StreamBuilder<List<BazzerItem>>(
+        key: ValueKey('${member.uid}/${member.isAdmin}'),
+        stream: _itemsStream(
+          familyId,
+          secure: true,
+          authorUid: member.isAdmin ? null : member.uid,
+        ),
+        builder: (context, secureSnapshot) {
+          if (secureSnapshot.hasError) {
             return const Center(
-              child: Text('তালিকা পড়া যায়নি। আবার চেষ্টা করুন।'),
+              child: Text(
+                'Secure তালিকা পড়া যায়নি। Admin-এর সঙ্গে যোগাযোগ করুন।',
+              ),
             );
           }
-          // Start both subscriptions together. Both tabs share the same
-          // permitted documents, so the daily total survives bought/undo.
-          return StreamBuilder<List<BazzerItem>>(
-            key: ValueKey('${member.uid}/${member.isAdmin}'),
-            stream: _itemsStream(
-              familyId,
-              secure: true,
-              authorUid: member.isAdmin ? null : member.uid,
-            ),
-            builder: (context, secureSnapshot) {
-              if (secureSnapshot.hasError) {
-                return const Center(
-                  child: Text(
-                    'Secure তালিকা পড়া যায়নি। Admin-এর সঙ্গে যোগাযোগ করুন।',
+          if (snapshot.connectionState == ConnectionState.waiting ||
+              secureSnapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final items = [...?snapshot.data, ...?secureSnapshot.data].map((
+            item,
+          ) {
+            final edit = _priceEdits[_priceKey(familyId, member, item)];
+            return edit == null
+                ? item
+                : item.copyWith(
+                    pricePaisa: edit.$1,
+                    clearPrice: edit.$1 == null,
+                    hasPendingWrites: true,
+                  );
+          }).toList();
+          return TabBarView(
+            controller: _tabs,
+            children: [
+              for (final bought in [false, true])
+                BazzerDailyList(
+                  items: items,
+                  bought: bought,
+                  currentUid: member.uid,
+                  isAdmin: member.isAdmin,
+                  search: _search,
+                  filterStore: bought ? null : _filterStore,
+                  filters: bought ? null : _storeFilters(),
+                  onEdit: (item) => _editItem(familyId, item),
+                  onDelete: (item) => _deleteItem(familyId, item),
+                  onToggle: (item) => _queueWrite(
+                    _repository.setBought(familyId, item, !item.isBought),
                   ),
-                );
-              }
-              if (snapshot.connectionState == ConnectionState.waiting ||
-                  secureSnapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              final items = [...?snapshot.data, ...?secureSnapshot.data].map((
-                item,
-              ) {
-                final edit = _priceEdits[_priceKey(familyId, member, item)];
-                return edit == null
-                    ? item
-                    : item.copyWith(
-                        pricePaisa: edit.$1,
-                        clearPrice: edit.$1 == null,
-                        hasPendingWrites: true,
-                      );
-              }).toList();
-              return TabBarView(
-                controller: _tabs,
-                children: [
-                  for (final bought in [false, true])
-                    BazzerDailyList(
-                      items: items,
-                      bought: bought,
-                      currentUid: member.uid,
-                      isAdmin: member.isAdmin,
-                      search: _search,
-                      filterStore: bought ? null : _filterStore,
-                      filters: bought ? null : _storeFilters(),
-                      onEdit: (item) => _editItem(familyId, item),
-                      onDelete: (item) => _deleteItem(familyId, item),
-                      onToggle: (item) => _queueWrite(
-                        _repository.setBought(familyId, item, !item.isBought),
-                      ),
-                      onSetPrice: (item, price) =>
-                          _setPrice(familyId, member, item, price),
-                      onCustomPrice: (item) =>
-                          _customPrice(familyId, member, item),
-                    ),
-                ],
-              );
-            },
+                  onSetPrice: (item, price) =>
+                      _setPrice(familyId, member, item, price),
+                  onAddFive: (item) => _addFive(familyId, member, item),
+                  onSave: (note) => _saveDay(familyId, member, note),
+                  savingDays: {
+                    for (final item in items)
+                      if (_savingDays.contains(
+                        '$familyId/${member.uid}/${item.dayKey}',
+                      ))
+                        item.dayKey,
+                  },
+                  savedSignatures: {
+                    for (final item in items)
+                      if (_savedDays.containsKey(
+                        '$familyId/${member.uid}/${item.dayKey}',
+                      ))
+                        item.dayKey:
+                            _savedDays['$familyId/${member.uid}/${item.dayKey}']!,
+                  },
+                  onCustomPrice: (item) => _customPrice(familyId, member, item),
+                ),
+            ],
           );
         },
       );
+    },
+  );
 
   String _priceKey(String familyId, BazzerMember member, BazzerItem item) =>
       '$familyId/${member.uid}/${item.isSecure}/${item.id}';
+
+  void _addFive(String familyId, BazzerMember member, BazzerItem item) {
+    final key = _priceKey(familyId, member, item);
+    final previous = _priceEdits.containsKey(key)
+        ? _priceEdits[key]!.$1
+        : item.pricePaisa;
+    final next = (previous ?? 0) + 500;
+    if (next > bazzerMaxPricePaisa) return;
+    _setPrice(familyId, member, item, next);
+  }
+
+  Future<void> _saveDay(
+    String familyId,
+    BazzerMember member,
+    BazzerDailyNote note,
+  ) async {
+    if (!member.isAdmin) return;
+    final key = '$familyId/${member.uid}/${note.day}';
+    if (_savingDays.contains(key)) return;
+    try {
+      final draft = BazzerExpenseDraft.fromNote(note);
+      setState(() => _savingDays.add(key));
+      await _repository.saveExpense(familyId, draft);
+      if (!mounted) return;
+      setState(() => _savedDays[key] = draft.signature);
+      _message('হিসাব সেভ হয়েছে। উপরের রসিদ আইকনে মাসিক খরচ দেখুন।');
+    } catch (_) {
+      _message(
+        'হিসাব সেভ হয়নি। সব দাম, সংযোগ ও Admin-এর অনুমতি দেখে আবার চেষ্টা করুন।',
+      );
+    } finally {
+      if (mounted) setState(() => _savingDays.remove(key));
+    }
+  }
 
   void _setPrice(
     String familyId,

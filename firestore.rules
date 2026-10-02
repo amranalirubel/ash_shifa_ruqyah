@@ -124,6 +124,24 @@ service cloud.firestore {
         && request.resource.data.name.size() <= 120;
     }
 
+    function validShoppingExpense(data, dayId) {
+      return data.keys().hasAll(['day', 'totalPaisa', 'itemCount', 'savedBy', 'savedAt'])
+        && data.keys().hasOnly(['day', 'totalPaisa', 'itemCount', 'savedBy', 'savedAt'])
+        && data.day == dayId
+        && dayId.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$')
+        && data.itemCount is int && data.itemCount >= 0 && data.itemCount <= 1000000
+        && data.totalPaisa is int && data.totalPaisa >= 0
+        && data.totalPaisa <= data.itemCount * 100000000
+        && data.savedBy == request.auth.uid && data.savedAt == request.time;
+    }
+
+    function validShoppingExpensePair(familyId, dayId) {
+      let shared = getAfter(/databases/$(database)/documents/shopping_families/$(familyId)/expenses/$(dayId)).data;
+      let full = getAfter(/databases/$(database)/documents/shopping_families/$(familyId)/admin_expenses/$(dayId)).data;
+      return validShoppingExpense(shared, dayId) && validShoppingExpense(full, dayId)
+        && shared.totalPaisa <= full.totalPaisa && shared.itemCount <= full.itemCount;
+    }
+
     function isMomChildContentDocument(documentId) {
       return documentId in [
         'problems',
@@ -278,6 +296,22 @@ service cloud.firestore {
           || shoppingPriceEdit(familyId);
         allow delete: if shoppingMember(familyId)
           && resource.data.createdBy == request.auth.uid;
+      }
+
+      // Paired daily snapshots are saved atomically by family Admins. A normal
+      // member can never read the document containing a combined secure total.
+      match /expenses/{dayId} {
+        allow read: if shoppingMember(familyId);
+        allow create, update: if shoppingAdmin(familyId)
+          && validShoppingExpensePair(familyId, dayId);
+        allow delete: if false;
+      }
+
+      match /admin_expenses/{dayId} {
+        allow read: if shoppingAdmin(familyId);
+        allow create, update: if shoppingAdmin(familyId)
+          && validShoppingExpensePair(familyId, dayId);
+        allow delete: if false;
       }
 
       // Secure items use a separate collection, so old normal lists keep their
