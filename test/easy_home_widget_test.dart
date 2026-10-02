@@ -260,7 +260,6 @@ void main() {
       await tester.tap(find.byType(NavigationDestination).at(2));
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('রসিদ / ইতিহাস'));
-      await tester.ensureVisible(find.text('রসিদ / ইতিহাস'));
       await tester.tap(find.text('রসিদ / ইতিহাস'));
       await tester.pumpAndSettle();
       expect(find.textContaining('secret-receipt'), findsOneWidget);

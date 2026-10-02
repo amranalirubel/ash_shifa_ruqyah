@@ -359,6 +359,7 @@ class _UtilityToolState extends State<_UtilityTool> {
           onChanged: (_) => setState(_invalidate),
         ),
         TextField(
+          key: const ValueKey('utility-amount'),
           controller: _amount,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: const InputDecoration(labelText: 'মোট বিল (টাকা)'),
